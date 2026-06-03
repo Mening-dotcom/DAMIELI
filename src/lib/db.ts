@@ -2,11 +2,25 @@ import fs from 'fs'
 import path from 'path'
 import initSqlJs from 'sql.js'
 
-const DATA_DIR = path.join(process.cwd(), '.data')
-const DB_FILE = path.join(DATA_DIR, 'damieli.sqlite')
+const DEFAULT_DATA_DIR = path.join(process.cwd(), '.data')
+const FALLBACK_DATA_DIR = path.join('/tmp', '.data')
+let DATA_DIR = process.env.DATA_DIR || (process.env.VERCEL ? FALLBACK_DATA_DIR : DEFAULT_DATA_DIR)
+let DB_FILE = path.join(DATA_DIR, 'damieli.sqlite')
 const WASM_PATH = path.join(process.cwd(), 'node_modules', 'sql.js', 'dist', 'sql-wasm.wasm')
 
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+function ensureDataDir() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+  } catch (e) {
+    if (DATA_DIR !== FALLBACK_DATA_DIR) {
+      DATA_DIR = FALLBACK_DATA_DIR
+      DB_FILE = path.join(DATA_DIR, 'damieli.sqlite')
+      if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true })
+    }
+  }
+}
+
+ensureDataDir()
 
 let SQL: any = null
 let useJsonFallback = false
