@@ -1,0 +1,12 @@
+{
+  "users": [
+    {
+      "id": "1d02ad23-6dc0-4231-b9e0-ed40f95f26b9",
+      "email": "tester+ci@example.com",
+      "passwordHash": "b479dbc0760e15e0b3af7c9954debc7e:03d2e9c269f069aeccf937c28275b0baecdab5c41ecc7b70721aa5b22e8ee794ddc09efa127d4dd9ef58884e7d417422a11b237254ccc0212d93b579a1739768",
+      "createdAt": "2026-05-28T22:53:54.862Z"
+    }
+  ],
+  "history": [],
+  "app_state": {}
+}

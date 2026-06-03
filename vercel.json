@@ -1,0 +1,10 @@
+{
+  "version": 3,
+  "name": "damieli",
+  "build": {
+    "env": {
+      "ANTHROPIC_API_KEY": "@anthropic-api-key",
+      "AUTH_SECRET": "@auth-secret"
+    }
+  }
+}

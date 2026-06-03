@@ -1,0 +1,104 @@
+@import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #d7fbff;
+  --surface: rgba(5, 70, 90, 0.92);
+  --surface2: rgba(10, 95, 115, 0.92);
+  --surface3: rgba(7, 86, 104, 0.92);
+  --border: rgba(255,255,255,0.18);
+  --border2: rgba(255,255,255,0.24);
+  --text: #effcff;
+  --muted: #c9f4f6;
+  --primary: #2dd4bf;
+  --accent: #38bdf8;
+  --danger: #ff5f5f;
+  --info: #7dd3fc;
+  --success: #22c55e;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  background-color: #d7fbff;
+  background-image:
+    radial-gradient(circle at top left, rgba(255,255,255,0.92) 0%, transparent 18%),
+    radial-gradient(circle at 80% 15%, rgba(56,189,248,0.15) 0%, transparent 18%),
+    linear-gradient(180deg, #d7fbff 0%, #a5f3fc 50%, #6ee7f7 100%);
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: 'DM Sans', sans-serif;
+  margin: 0;
+  padding: 0;
+  min-height: 100vh;
+}
+
+.panel {
+  background: rgba(16,16,20,0.96);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 20px;
+  box-shadow: 0 26px 80px rgba(0,0,0,0.18);
+}
+
+.panel-soft {
+  background: rgba(24,24,28,0.92);
+  border: 1px solid rgba(255,255,255,0.10);
+  border-radius: 18px;
+}
+
+.card-header {
+  font-family: 'Syne', sans-serif;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: rgba(255,255,255,0.08); }
+::-webkit-scrollbar-thumb { background: rgba(74,74,74,0.35); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(74,74,74,0.55); }
+
+h1, h2, h3, h4, .font-display {
+  font-family: 'Syne', sans-serif;
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: var(--surface); }
+::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #444; }
+
+input, textarea, select {
+  font-family: 'DM Sans', sans-serif;
+}
+
+.animate-spin-slow {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fade-in {
+  animation: fadeIn 0.3s ease forwards;
+}
+
+/* CV Print styles */
+@media print {
+  body { background: white; }
+  .no-print { display: none !important; }
+  .cv-paper {
+    box-shadow: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+}
