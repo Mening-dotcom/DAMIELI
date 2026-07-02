@@ -10,21 +10,21 @@ export interface CVTemplate {
 const modernTemplate: CVTemplate = {
   id: 'modern',
   name: 'Modern',
-  description: 'Clean and ATS-optimized. Perfect for tech roles.',
+  description: 'Balanced, polished layout for corporate and growth roles.',
   category: 'modern',
 }
 
 const atsTemplate: CVTemplate = {
   id: 'ats',
   name: 'ATS-Optimized',
-  description: 'Maximizes ATS parsing. Straightforward formatting for applicant tracking systems.',
+  description: 'Strict, recruiter-first format built for fast parsing and clear scanning.',
   category: 'ats',
 }
 
 const creativeTemplate: CVTemplate = {
   id: 'creative',
   name: 'Creative',
-  description: 'Visually engaging. Great for creative, marketing, or design roles.',
+  description: 'Editorial-style layout with a sidebar for marketing, design, and media roles.',
   category: 'creative',
 }
 
