@@ -4,52 +4,10 @@ import { AppState, UserProfile, Job, Education, Certification, Language, Generat
 import { loadState, saveState, calcProfileStrength, buildProfileText, uid, defaultProfile, defaultState } from '@/lib/state'
 import { CV_TEMPLATES, renderCV } from '@/lib/templates'
 
-// ─── PDF export that matches the visible CV preview ───────────────────────
+// ─── PDF export that stays readable and avoids tiny over-split pages ─────
 async function downloadPDF(profile: any, cvData: any, role: string, previewNode?: HTMLDivElement | null) {
   try {
     const { jsPDF } = await import('jspdf')
-
-    if (previewNode) {
-      try {
-        const { default: html2canvas } = await import('html2canvas')
-        const canvas = await html2canvas(previewNode, {
-          scale: 2,
-          useCORS: true,
-          backgroundColor: '#ffffff',
-          logging: false,
-          scrollX: 0,
-          scrollY: 0,
-          windowWidth: previewNode.scrollWidth,
-          windowHeight: previewNode.scrollHeight,
-        })
-
-        const pdf = new jsPDF({ unit: 'mm', format: 'a4' })
-        const pageWidth = pdf.internal.pageSize.getWidth()
-        const pageHeight = pdf.internal.pageSize.getHeight()
-        const margin = 12
-        const imgWidth = pageWidth - margin * 2
-        const imgHeight = (canvas.height * imgWidth) / canvas.width
-        const imgData = canvas.toDataURL('image/png')
-
-        let heightLeft = imgHeight
-        let position = margin
-        let pageIndex = 0
-
-        while (heightLeft > 0) {
-          if (pageIndex > 0) pdf.addPage()
-          const pageContentHeight = Math.min(pageHeight - margin * 2, heightLeft)
-          pdf.addImage(imgData, 'PNG', margin, position, imgWidth, pageContentHeight)
-          heightLeft -= pageContentHeight
-          position = margin - (pageContentHeight - (pageHeight - margin * 2))
-          pageIndex += 1
-        }
-
-        pdf.save(`${(profile?.name || 'CV').replace(/ /g, '_')}_CV.pdf`)
-        return
-      } catch (error) {
-        console.error('Preview PDF export failed, using text fallback:', error)
-      }
-    }
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const W = 210, M = 15, TW = W - M * 2
@@ -72,17 +30,17 @@ async function downloadPDF(profile: any, cvData: any, role: string, previewNode?
       const width = TW - indent
       const wrapped = doc.splitTextToSize(text, width) as string[]
       wrapped.forEach((l: string) => {
-        ensureSpace(size * 0.55 + 1)
+        ensureSpace(size * 0.52 + 1)
         doc.text(l, M + indent, y)
-        y += size * 0.55 + 0.4
+        y += size * 0.52 + 0.35
       })
-      y += 0.6
+      y += 0.5
     }
 
     const section = (title: string) => {
-      ensureSpace(12)
+      ensureSpace(10)
       y += 2
-      doc.setFontSize(9)
+      doc.setFontSize(8.5)
       doc.setFont('helvetica', 'bold')
       doc.setTextColor('#444444')
       doc.text(title.toUpperCase(), M, y)
@@ -90,48 +48,48 @@ async function downloadPDF(profile: any, cvData: any, role: string, previewNode?
       doc.setDrawColor('#e5e7eb')
       doc.setLineWidth(0.2)
       doc.line(M, y, M + TW, y)
-      y += 4
+      y += 3.2
     }
 
-    if (profile?.name) line(profile.name, 20, true, '#111111')
+    if (profile?.name) line(profile.name, 18, true, '#111111')
     const contact = [profile?.email, profile?.phone, profile?.location, profile?.linkedin].filter(Boolean).join('  |   ')
-    if (contact) line(contact, 8.5, false, '#555555')
-    y += 1.5
+    if (contact) line(contact, 7.5, false, '#555555')
+    y += 1
 
     if (cvData?.summary) {
       section('Professional Summary')
-      line(cvData.summary, 9.5)
+      line(cvData.summary, 8.8)
     }
 
     if (cvData?.experience && Array.isArray(cvData.experience)) {
       section('Experience')
       cvData.experience.forEach((exp: any) => {
         if (!exp) return
-        ensureSpace(16)
+        ensureSpace(12)
 
-        doc.setFontSize(10)
+        doc.setFontSize(9.2)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor('#111111')
         doc.text(exp.title || 'Position', M, y)
-        doc.setFontSize(8.5)
+        doc.setFontSize(7.6)
         doc.setFont('helvetica', 'normal')
         doc.setTextColor('#666666')
         doc.text(exp.dates || '', W - M, y, { align: 'right' })
-        y += 4.2
+        y += 3.6
 
-        doc.setFontSize(9.5)
+        doc.setFontSize(8.6)
         doc.setFont('helvetica', 'italic')
         doc.setTextColor('#333333')
         doc.text((exp.company || '') + (exp.location ? ` — ${exp.location}` : ''), M, y)
-        y += 4.2
+        y += 3.6
 
         if (exp.bullets && Array.isArray(exp.bullets)) {
           exp.bullets.forEach((b: string) => {
             if (!b) return
-            line(`• ${b}`, 9, false, '#333333', 2)
+            line(`• ${b}`, 8.2, false, '#333333', 2)
           })
         }
-        y += 1.5
+        y += 1
       })
     }
 
@@ -139,39 +97,39 @@ async function downloadPDF(profile: any, cvData: any, role: string, previewNode?
       section('Education')
       cvData.education.forEach((e: any) => {
         if (!e) return
-        ensureSpace(12)
-        doc.setFontSize(10)
+        ensureSpace(10)
+        doc.setFontSize(9.2)
         doc.setFont('helvetica', 'bold')
         doc.setTextColor('#111111')
         doc.text(e.degree || 'Degree', M, y)
-        doc.setFontSize(8.5)
+        doc.setFontSize(7.6)
         doc.setFont('helvetica', 'normal')
         doc.setTextColor('#666666')
         doc.text(e.year || '', W - M, y, { align: 'right' })
-        y += 4.2
-        doc.setFontSize(9.5)
+        y += 3.6
+        doc.setFontSize(8.4)
         doc.setFont('helvetica', 'italic')
         doc.setTextColor('#444444')
         doc.text(e.school || '', M, y)
-        y += 4.2
-        if (e.note) line(e.note, 8.5, false, '#555555')
-        y += 1
+        y += 3.6
+        if (e.note) line(e.note, 7.8, false, '#555555')
+        y += 0.8
       })
     }
 
     if (cvData?.skills && Array.isArray(cvData.skills) && cvData.skills.length > 0) {
       section('Skills')
-      line(cvData.skills.join('  •  '), 9)
+      line(cvData.skills.join('  •  '), 8.2)
     }
 
     if (cvData?.certifications && Array.isArray(cvData.certifications) && cvData.certifications.length > 0) {
       section('Certifications')
-      line(cvData.certifications.join('  •  '), 9)
+      line(cvData.certifications.join('  •  '), 8.2)
     }
 
     if (cvData?.languages && Array.isArray(cvData.languages) && cvData.languages.length > 0) {
       section('Languages')
-      line(cvData.languages.join('  |   '), 9)
+      line(cvData.languages.join('  |   '), 8.2)
     }
 
     doc.save(`${(profile?.name || 'CV').replace(/ /g, '_')}_CV.pdf`)
@@ -179,6 +137,7 @@ async function downloadPDF(profile: any, cvData: any, role: string, previewNode?
     console.error('PDF Generation crashed:', error)
   }
 }
+
 async function downloadWord(profile: UserProfile, cvData: CVData, role: string) {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel, BorderStyle, AlignmentType } = await import('docx')
 
