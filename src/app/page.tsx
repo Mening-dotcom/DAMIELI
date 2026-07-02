@@ -4,8 +4,8 @@ import { AppState, UserProfile, Job, Education, Certification, Language, Generat
 import { loadState, saveState, calcProfileStrength, buildProfileText, uid, defaultProfile, defaultState } from '@/lib/state'
 import { CV_TEMPLATES, renderCV } from '@/lib/templates'
 
-// ─── PDF export that stays readable and avoids tiny over-split pages ─────
-async function downloadPDF(profile: any, cvData: any, role: string, previewNode?: HTMLDivElement | null) {
+// ─── PDF export that stays readable and reflects the chosen CV style ─────
+async function downloadPDF(profile: any, cvData: any, role: string, previewNode?: HTMLDivElement | null, templateId = 'modern') {
   try {
     const { jsPDF } = await import('jspdf')
 
@@ -14,6 +14,12 @@ async function downloadPDF(profile: any, cvData: any, role: string, previewNode?
     const pageHeight = doc.internal.pageSize.getHeight()
     const maxY = pageHeight - 15
     let y = 15
+
+    const isAts = templateId === 'ats'
+    const isCreative = templateId === 'creative'
+    const accentColor = isCreative ? '#2563eb' : isAts ? '#1d4ed8' : '#0f766e'
+    const titleColor = isCreative ? '#7dd3fc' : isAts ? '#0f172a' : '#111111'
+    const bodyColor = isCreative ? '#e2e8f0' : '#333333'
 
     const ensureSpace = (neededSpace: number) => {
       if (y + neededSpace > maxY) {
@@ -37,39 +43,53 @@ async function downloadPDF(profile: any, cvData: any, role: string, previewNode?
       y += 0.5
     }
 
-    const section = (title: string) => {
+    const section = (title: string, compact = false) => {
       ensureSpace(10)
-      y += 2
-      doc.setFontSize(8.5)
+      y += compact ? 0 : 2
+      doc.setFontSize(compact ? 8 : 8.5)
       doc.setFont('helvetica', 'bold')
-      doc.setTextColor('#444444')
+      doc.setTextColor(isCreative ? '#bae6fd' : isAts ? '#0f172a' : '#444444')
       doc.text(title.toUpperCase(), M, y)
-      y += 2.2
-      doc.setDrawColor('#e5e7eb')
-      doc.setLineWidth(0.2)
+      y += compact ? 2.2 : 2.2
+      doc.setDrawColor(isCreative ? '#60a5fa' : '#e5e7eb')
+      doc.setLineWidth(isCreative ? 0.35 : 0.2)
       doc.line(M, y, M + TW, y)
       y += 3.2
     }
 
-    if (profile?.name) line(profile.name, 18, true, '#111111')
+    if (profile?.name) {
+      doc.setFontSize(isCreative ? 18 : isAts ? 16 : 18)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor(titleColor)
+      doc.text(profile.name, M, y)
+      y += 5.2
+    }
+
     const contact = [profile?.email, profile?.phone, profile?.location, profile?.linkedin].filter(Boolean).join('  |   ')
-    if (contact) line(contact, 7.5, false, '#555555')
+    if (contact) line(contact, isCreative ? 7.2 : isAts ? 7 : 7.5, false, isCreative ? '#cbd5e1' : '#555555')
     y += 1
 
+    if (isCreative) {
+      doc.setDrawColor(accentColor)
+      doc.setLineWidth(0.7)
+      doc.line(M, y, M + TW * 0.55, y)
+      y += 2.6
+    }
+
     if (cvData?.summary) {
-      section('Professional Summary')
-      line(cvData.summary, 8.8)
+      section('Professional Summary', isAts)
+      line(cvData.summary, 8.8, false, bodyColor)
     }
 
     if (cvData?.experience && Array.isArray(cvData.experience)) {
-      section('Experience')
+      section('Experience', isAts)
       cvData.experience.forEach((exp: any) => {
         if (!exp) return
         ensureSpace(12)
 
         doc.setFontSize(9.2)
         doc.setFont('helvetica', 'bold')
-        doc.setTextColor('#111111')
+        doc.setTextColor(titleColor)
         doc.text(exp.title || 'Position', M, y)
         doc.setFontSize(7.6)
         doc.setFont('helvetica', 'normal')
@@ -79,14 +99,14 @@ async function downloadPDF(profile: any, cvData: any, role: string, previewNode?
 
         doc.setFontSize(8.6)
         doc.setFont('helvetica', 'italic')
-        doc.setTextColor('#333333')
+        doc.setTextColor(bodyColor)
         doc.text((exp.company || '') + (exp.location ? ` — ${exp.location}` : ''), M, y)
         y += 3.6
 
         if (exp.bullets && Array.isArray(exp.bullets)) {
           exp.bullets.forEach((b: string) => {
             if (!b) return
-            line(`• ${b}`, 8.2, false, '#333333', 2)
+            line(`• ${b}`, 8.2, false, bodyColor, isCreative ? 2 : 2)
           })
         }
         y += 1
@@ -94,13 +114,13 @@ async function downloadPDF(profile: any, cvData: any, role: string, previewNode?
     }
 
     if (cvData?.education && Array.isArray(cvData.education)) {
-      section('Education')
+      section('Education', isAts)
       cvData.education.forEach((e: any) => {
         if (!e) return
         ensureSpace(10)
         doc.setFontSize(9.2)
         doc.setFont('helvetica', 'bold')
-        doc.setTextColor('#111111')
+        doc.setTextColor(titleColor)
         doc.text(e.degree || 'Degree', M, y)
         doc.setFontSize(7.6)
         doc.setFont('helvetica', 'normal')
@@ -109,27 +129,27 @@ async function downloadPDF(profile: any, cvData: any, role: string, previewNode?
         y += 3.6
         doc.setFontSize(8.4)
         doc.setFont('helvetica', 'italic')
-        doc.setTextColor('#444444')
+        doc.setTextColor(bodyColor)
         doc.text(e.school || '', M, y)
         y += 3.6
-        if (e.note) line(e.note, 7.8, false, '#555555')
+        if (e.note) line(e.note, 7.8, false, isCreative ? '#cbd5e1' : '#555555')
         y += 0.8
       })
     }
 
     if (cvData?.skills && Array.isArray(cvData.skills) && cvData.skills.length > 0) {
-      section('Skills')
-      line(cvData.skills.join('  •  '), 8.2)
+      section('Skills', isAts)
+      line(cvData.skills.join('  •  '), 8.2, false, bodyColor)
     }
 
     if (cvData?.certifications && Array.isArray(cvData.certifications) && cvData.certifications.length > 0) {
-      section('Certifications')
-      line(cvData.certifications.join('  •  '), 8.2)
+      section('Certifications', isAts)
+      line(cvData.certifications.join('  •  '), 8.2, false, bodyColor)
     }
 
     if (cvData?.languages && Array.isArray(cvData.languages) && cvData.languages.length > 0) {
-      section('Languages')
-      line(cvData.languages.join('  |   '), 8.2)
+      section('Languages', isAts)
+      line(cvData.languages.join('  |   '), 8.2, false, bodyColor)
     }
 
     doc.save(`${(profile?.name || 'CV').replace(/ /g, '_')}_CV.pdf`)
@@ -241,6 +261,7 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState('')
   const [authStatus, setAuthStatus] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
+  const [isMobile, setIsMobile] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const previewRef = useRef<HTMLDivElement | null>(null)
 
@@ -328,6 +349,13 @@ export default function App() {
     setState(loaded)
     setOutputLanguage(loaded.outputLanguage || 'English')
     fetchAuthState()
+  }, [])
+
+  useEffect(() => {
+    const updateViewport = () => setIsMobile(window.innerWidth < 900)
+    updateViewport()
+    window.addEventListener('resize', updateViewport)
+    return () => window.removeEventListener('resize', updateViewport)
   }, [])
 
   const saveToServer = async (s: AppState, userId?: string) => {
@@ -422,6 +450,11 @@ export default function App() {
   }
 
   const strength = calcProfileStrength(state.profile)
+  const responsiveStatsGrid = isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))'
+  const responsiveSplitGrid = isMobile ? '1fr' : '1.4fr 1fr'
+  const responsiveTwoColGrid = isMobile ? '1fr' : '1fr 1fr'
+  const responsiveThreeColGrid = isMobile ? '1fr' : '1fr 1fr 1fr'
+  const responsiveTemplateGrid = isMobile ? '1fr' : 'repeat(3, 1fr)'
 
   // ── Job fetch ──
   const fetchJob = async () => {
@@ -493,7 +526,7 @@ export default function App() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Sidebar */}
-      <nav style={{ width: 240, background: 'linear-gradient(180deg, rgba(4,93,113,0.98), rgba(7,80,101,0.98))', borderRight: '1px solid rgba(255,255,255,0.12)', display: 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, bottom: 0, zIndex: 10, padding: '22px 0' }}>
+      <nav style={{ width: isMobile ? '100%' : 240, background: 'linear-gradient(180deg, rgba(4,93,113,0.98), rgba(7,80,101,0.98))', borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.12)', borderBottom: isMobile ? '1px solid rgba(255,255,255,0.08)' : 'none', display: 'flex', flexDirection: 'column', position: isMobile ? 'relative' : 'fixed', top: 0, left: 0, bottom: isMobile ? 'auto' : 0, height: isMobile ? 'auto' : '100vh', zIndex: 10, padding: isMobile ? '16px 0 10px' : '22px 0' }}>
         <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ fontFamily: 'Syne', fontSize: 24, fontWeight: 900, color: 'var(--accent)', letterSpacing: -1 }}>DAMIELI</div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, maxWidth: 200 }}>Fast resume studio with easy CV creation and clean downloads.</div>
@@ -536,7 +569,7 @@ export default function App() {
       </nav>
 
       {/* Main */}
-      <main style={{ marginLeft: 240, flex: 1, padding: '32px 40px', maxWidth: 1040, width: '100%' }}>
+      <main style={{ marginLeft: isMobile ? 0 : 240, flex: 1, padding: isMobile ? '20px 16px' : '32px 40px', maxWidth: 1040, width: '100%', overflowX: 'hidden' }}>
 
         {/* ── HOME ── */}
         {screen === 'home' && (
@@ -545,7 +578,7 @@ export default function App() {
               <div style={{ padding: '30px 34px', borderRadius: 24, background: 'rgba(5,70,90,0.96)', border: '1px solid rgba(255,255,255,0.12)', boxShadow: '0 28px 70px rgba(0,0,0,0.12)' }}>
                 <h1 style={{ fontSize: 38, fontWeight: 900, letterSpacing: -0.9, marginBottom: 12, color: '#fff' }}>Faster CV creation with polished downloads.</h1>
                 <p style={{ color: 'var(--muted)', fontSize: 16, lineHeight: 1.7, maxWidth: 760, marginBottom: 16 }}>A fast workspace for building your profile, matching jobs, and exporting ready-to-use resumes in PDF or Word.</p>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 12, marginTop: 12 }}>
+                <div style={{ display: 'grid', gridTemplateColumns: responsiveStatsGrid, gap: 12, marginTop: 12 }}>
                   {[
                     { label: 'Fast resume drafts', value: '30 sec' },
                     { label: 'Tailored job matches', value: state.stats.cvsGenerated + ' done' },
@@ -559,7 +592,7 @@ export default function App() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1.4fr 1fr', gap: 18 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: responsiveSplitGrid, gap: 18 }}>
                 <div style={{ padding: '26px 28px', borderRadius: 22, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                   <div style={{ fontFamily: 'Syne', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1.2, color: '#0b3d91', marginBottom: 12 }}>Your next move</div>
                   <div style={{ fontSize: 15, color: '#0b3d91', lineHeight: 1.75, marginBottom: 16 }}>Build your profile, match jobs, and export resume files in one clean workflow.</div>
@@ -585,7 +618,7 @@ export default function App() {
             </div>
 
             {/* Stats */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 14, marginBottom: 24 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: responsiveStatsGrid, gap: 14, marginBottom: 24 }}>
               {[
                 { val: state.stats.cvsGenerated, label: 'CVs generated', color: '#38bdf8', icon: '⚡' },
                 { val: state.stats.jobsAnalyzed, label: 'Jobs analyzed', color: '#2dd4bf', icon: '🎯' },
@@ -629,7 +662,7 @@ export default function App() {
             )}
 
             {/* Quick actions */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: responsiveTwoColGrid, gap: 12, marginBottom: 20 }}>
               {[
                 { icon: '⚡', title: 'Generate CV', sub: 'Paste a job URL or description and get a tailored CV in 30 seconds', action: () => setScreen('generate') },
                 { icon: '👤', title: 'Build Profile', sub: 'Add all your experience — past jobs, courses, languages, everything', action: () => setScreen('profile') },
@@ -649,9 +682,9 @@ export default function App() {
                 <div style={{ fontFamily: 'Syne', fontSize: 13, fontWeight: 700, color: '#0b3d91', marginBottom: 6 }}>CV language</div>
                 <div style={{ fontSize: 13, color: '#0b3d91' }}>Choose the language used when generating your tailored CV.</div>
               </div>
-              <div style={{ display: 'flex', gap: 10 }}>
+              <div style={{ display: 'flex', gap: 10, flexDirection: isMobile ? 'column' : 'row', width: isMobile ? '100%' : 'auto' }}>
                 {(['English', 'Spanish'] as const).map(lang => (
-                  <button key={lang} onClick={() => updateOutputLanguage(lang)} style={{ padding: '10px 18px', borderRadius: 999, border: outputLanguage === lang ? '1px solid #0b3d91' : '1px solid rgba(13,110,253,0.2)', background: outputLanguage === lang ? '#0b7cde' : 'rgba(255,255,255,0.12)', color: outputLanguage === lang ? '#fff' : '#0b3d91', cursor: 'pointer', fontSize: 13, minWidth: 100 }}>
+                  <button key={lang} onClick={() => updateOutputLanguage(lang)} style={{ padding: '10px 18px', borderRadius: 999, border: outputLanguage === lang ? '1px solid #0b3d91' : '1px solid rgba(13,110,253,0.2)', background: outputLanguage === lang ? '#0b7cde' : 'rgba(255,255,255,0.12)', color: outputLanguage === lang ? '#fff' : '#0b3d91', cursor: 'pointer', fontSize: 13, minWidth: isMobile ? '100%' : 100 }}>
                     {lang}
                   </button>
                 ))}
@@ -688,12 +721,12 @@ export default function App() {
 
             {/* Personal Info */}
             <Card title="Personal Info">
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: responsiveTwoColGrid, gap: 14 }}>
                 <Field label="Full name"><Input value={state.profile.name} onChange={v => updateProfile({ name: v })} placeholder="Steven" /></Field>
                 <Field label="Job title / headline"><Input value={state.profile.headline} onChange={v => updateProfile({ headline: v })} placeholder="Software Engineer" /></Field>
               </div>
               <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8 }}>Change your name anytime — this is the name used on all downloads and saved CV previews.</div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: responsiveThreeColGrid, gap: 14 }}>
                 <Field label="Email"><Input value={state.profile.email} onChange={v => updateProfile({ email: v })} placeholder="steven@email.com" /></Field>
                 <Field label="Phone"><Input value={state.profile.phone} onChange={v => updateProfile({ phone: v })} placeholder="+506 ..." /></Field>
                 <Field label="Location"><Input value={state.profile.location} onChange={v => updateProfile({ location: v })} placeholder="San José, CR" /></Field>
@@ -791,9 +824,9 @@ export default function App() {
               </div>
 
               {/* URL row */}
-              <div style={{ display: 'flex', gap: 10, marginBottom: 16 }}>
+              <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexDirection: isMobile ? 'column' : 'row' }}>
                 <input value={jobUrl} onChange={e => setJobUrl(e.target.value)} placeholder="https://linkedin.com/jobs/... or any job URL" style={{ ...inputStyle, flex: 1, fontSize: 13 }} />
-                <button onClick={fetchJob} disabled={fetchingUrl || !jobUrl} style={{ ...primaryBtnStyle, opacity: fetchingUrl || !jobUrl ? 0.5 : 1 }}>
+                <button onClick={fetchJob} disabled={fetchingUrl || !jobUrl} style={{ ...primaryBtnStyle, opacity: fetchingUrl || !jobUrl ? 0.5 : 1, width: isMobile ? '100%' : 'auto' }}>
                   {fetchingUrl ? '...' : 'Fetch'}
                 </button>
               </div>
@@ -836,7 +869,7 @@ export default function App() {
             {currentCV && (
               <div className="fade-in">
                 {/* Download bar */}
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 20px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 20px', display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', marginBottom: 16, flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 10 : 0 }}>
                   <div style={{ fontSize: 13 }}>
                     CV tailored for <strong style={{ color: 'var(--accent)' }}>{currentCV.role}</strong> @ <strong style={{ color: 'var(--accent)' }}>{currentCV.company}</strong>
                     <span style={{ marginLeft: 12, background: 'rgba(74,240,160,0.12)', color: 'var(--success)', fontSize: 11, padding: '2px 10px', borderRadius: 100, border: '1px solid rgba(74,240,160,0.2)' }}>ATS Optimized ✓</span>
@@ -844,7 +877,7 @@ export default function App() {
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => downloadWord(state.profile, currentCV.cvData, currentCV.role)} style={ghostBtnStyle}>⬇ Word</button>
-                    <button onClick={() => downloadPDF(state.profile, currentCV.cvData, currentCV.role, previewRef.current)} style={primaryBtnStyle}>⬇ PDF</button>
+                    <button onClick={() => downloadPDF(state.profile, currentCV.cvData, currentCV.role, previewRef.current, selectedTemplate || currentCV.templateId || 'modern')} style={primaryBtnStyle}>⬇ PDF</button>
                   </div>
                 </div>
 
@@ -872,7 +905,7 @@ export default function App() {
                 {/* Template Selector */}
                 <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '18px 22px', marginBottom: 16 }}>
                   <div style={{ fontFamily: 'Syne', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#666', marginBottom: 14 }}>📋 CV Template</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: responsiveTemplateGrid, gap: 10 }}>
                     {CV_TEMPLATES.map(t => (
                       <button key={t.id} onClick={() => setSelectedTemplate(t.id)} style={{ padding: '12px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, color: selectedTemplate === t.id ? '#fff' : '#555', background: selectedTemplate === t.id ? '#c8f04a' : '#f3f4f6', border: selectedTemplate === t.id ? '2px solid #b8d63e' : '1px solid #d1d5db', fontWeight: selectedTemplate === t.id ? 600 : 500, transition: 'all 0.15s', textAlign: 'left' }}>
                         <div style={{ fontWeight: 600, marginBottom: 2 }}>{t.name}</div>
@@ -891,7 +924,7 @@ export default function App() {
                   ))}
                 </div>
 
-                {cvTab === 'preview' && <CVPreview profile={state.profile} cvData={currentCV.cvData} templateId={selectedTemplate} containerRef={previewRef} />}
+                {cvTab === 'preview' && <CVPreview profile={state.profile} cvData={currentCV.cvData} templateId={selectedTemplate} containerRef={previewRef} isMobile={isMobile} />}
                 {cvTab === 'raw' && (
                   <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 24 }}>
                     <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, color: 'var(--text)', fontFamily: 'DM Sans', lineHeight: 1.7 }}>{buildRawText(currentCV)}</pre>
@@ -914,7 +947,7 @@ export default function App() {
                 <button onClick={() => fetchServerState()} style={{ border: '1px solid #0b3d91', background: 'transparent', color: '#0b3d91', borderRadius: 8, padding: '5px 10px', cursor: 'pointer' }}>Refresh server history</button>
               </div>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 20 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: responsiveTwoColGrid, gap: 12, marginBottom: 20 }}>
               <div style={{ padding: '18px 20px', borderRadius: 18, background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}>
                 <div style={{ fontSize: 12, color: '#0b3d91', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 6 }}>Local history</div>
                 <div style={{ fontSize: 22, fontWeight: 800, color: '#0b3d91' }}>{state.history.length}</div>
@@ -932,16 +965,16 @@ export default function App() {
             )}
 
             {state.history.map(h => (
-              <div key={h.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px', marginBottom: 12, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div key={h.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 14, padding: '18px 20px', marginBottom: 12, display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 10 : 0 }}>
                 <div>
                   <div style={{ fontWeight: 600, fontSize: 14 }}>{h.role} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>@ {h.company}</span></div>
                   <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
                     {h.generatedAt} · ATS: <span style={{ color: 'var(--accent)' }}>{h.atsScore}%</span> · {h.matchedKeywords.slice(0, 3).join(', ')}
                   </div>
                 </div>
-                <div style={{ display: 'flex', gap: 8 }}>
+                <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row', width: isMobile ? '100%' : 'auto' }}>
                   <button onClick={() => { setCurrentCV(h); setScreen('generate') }} style={ghostBtnStyle}>View</button>
-                  <button onClick={() => downloadPDF(state.profile, h.cvData, h.role)} style={primaryBtnStyle}>⬇ PDF</button>
+                  <button onClick={() => downloadPDF(state.profile, h.cvData, h.role, undefined, h.templateId || selectedTemplate || 'modern')} style={primaryBtnStyle}>⬇ PDF</button>
                 </div>
               </div>
             ))}
@@ -959,7 +992,7 @@ export default function App() {
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => { setCurrentCV(h); setScreen('generate') }} style={ghostBtnStyle}>View</button>
-                      <button onClick={() => downloadPDF(state.profile, h.cvData, h.role)} style={primaryBtnStyle}>⬇ PDF</button>
+                      <button onClick={() => downloadPDF(state.profile, h.cvData, h.role, undefined, h.templateId || selectedTemplate || 'modern')} style={primaryBtnStyle}>⬇ PDF</button>
                     </div>
                   </div>
                 ))}
@@ -1087,7 +1120,7 @@ export default function App() {
 
 // ─── Sub-components ────────────────────────────────────────────────
 
-function CVPreview({ profile, cvData, templateId, containerRef }: { profile: UserProfile; cvData: CVData; templateId: string; containerRef?: React.Ref<HTMLDivElement> }) {
+function CVPreview({ profile, cvData, templateId, containerRef, isMobile }: { profile: UserProfile; cvData: CVData; templateId: string; containerRef?: React.Ref<HTMLDivElement>; isMobile?: boolean }) {
   const contact = [profile.email, profile.phone, profile.location, profile.linkedin, profile.portfolio].filter(Boolean)
   const isModern = templateId === 'modern' || !['ats', 'creative'].includes(templateId)
   const isAts = templateId === 'ats'
@@ -1100,9 +1133,11 @@ function CVPreview({ profile, cvData, templateId, containerRef }: { profile: Use
     padding: isCreative ? '34px 32px' : '40px 44px',
     fontFamily: isAts ? 'Inter, sans-serif' : isCreative ? 'Montserrat, sans-serif' : 'Georgia, serif',
     lineHeight: 1.6,
-    maxWidth: 780,
+    maxWidth: isMobile ? '100%' : 780,
+    width: '100%',
     margin: '0 auto',
     fontSize: 14,
+    overflow: 'hidden',
     boxShadow: isCreative ? '0 0 0 1px rgba(255,255,255,0.08)' : '0 0 0 1px rgba(0,0,0,0.06)',
     border: isCreative ? '1px solid rgba(255,255,255,0.08)' : '1px solid rgba(15, 23, 42, 0.06)',
   }
@@ -1194,7 +1229,7 @@ function CVPreview({ profile, cvData, templateId, containerRef }: { profile: Use
   return (
     <div ref={containerRef} style={containerStyle}>
       {isCreative ? (
-        <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: 24 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: isMobile ? '1fr' : '220px 1fr', gap: 24 }}>
           <div style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: 14, padding: 18, alignSelf: 'start' }}>
             <div style={{ fontFamily: 'Syne, sans-serif', fontSize: 20, fontWeight: 800, color: '#7dd3fc', marginBottom: 8 }}>{profile.name}</div>
             {profile.headline && <div style={{ fontSize: 12, color: '#cbd5e1', marginBottom: 12, lineHeight: 1.5 }}>{profile.headline}</div>}
