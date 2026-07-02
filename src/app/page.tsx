@@ -270,15 +270,17 @@ export default function App() {
         setServerHistory(historyData.history)
       }
 
+      const localState = loadState()
+      const localHasProfileData = hasMeaningfulProfile(localState.profile) || localState.history.length > 0
+
       if (profileData.success && profileData.state?.profile) {
         const serverProfile = profileData.state.profile
         const serverStats = profileData.state.stats || state.stats
-        const localState = loadState()
         const localIsDefault = localState.profile.name === defaultProfile.name && localState.history.length === 0
-        const localHasProfileData = hasMeaningfulProfile(localState.profile)
+        const localHasMeaningfulData = hasMeaningfulProfile(localState.profile)
         const serverHasProfileData = hasMeaningfulProfile(serverProfile)
 
-        if (serverHasProfileData || localIsDefault || !localHasProfileData) {
+        if (serverHasProfileData || localIsDefault || !localHasMeaningfulData) {
           const mergedState: AppState = {
             profile: serverHasProfileData ? { ...defaultProfile, ...serverProfile } : { ...defaultProfile, ...localState.profile },
             history: historyData.success ? historyData.history : localState.history,
@@ -288,6 +290,16 @@ export default function App() {
           }
           save(mergedState)
         }
+      } else if (localHasProfileData) {
+        const mergedState: AppState = {
+          profile: { ...defaultProfile, ...localState.profile },
+          history: historyData.success ? historyData.history : localState.history,
+          stats: { ...localState.stats, ...state.stats },
+          templateId: localState.templateId || defaultState.templateId,
+          outputLanguage: localState.outputLanguage || defaultState.outputLanguage,
+        }
+        save(mergedState)
+        await saveToServer(mergedState, activeUserId)
       }
     } catch {
       // ignore server state errors in the UI
@@ -339,16 +351,44 @@ export default function App() {
     setAuthLoading(true)
     setAuthStatus('')
     try {
+      const payload = { email: authEmail.trim().toLowerCase(), password: authPassword }
       const res = await fetch(`/api/auth/${mode}`, {
         method: 'POST',
+        credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: authEmail, password: authPassword }),
+        body: JSON.stringify(payload),
       })
       const data = await res.json()
+
       if (!data.success) {
+        if (mode === 'signup' && data.error === 'User already exists') {
+          setAuthStatus('Account already exists. Signing you in…')
+          const loginRes = await fetch('/api/auth/login', {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          })
+          const loginData = await loginRes.json()
+          if (!loginData.success) {
+            setAuthStatus(loginData.error || 'Unable to authenticate')
+            return
+          }
+          if (loginData.user) {
+            setCurrentUser(loginData.user)
+            setAuthModal(null)
+            setAuthEmail('')
+            setAuthPassword('')
+            setAuthStatus('')
+            await fetchServerState(loginData.user.id)
+            await saveToServer(state, loginData.user.id)
+          }
+          return
+        }
         setAuthStatus(data.error || 'Unable to authenticate')
         return
       }
+
       if (data.user) {
         setCurrentUser(data.user)
         setAuthModal(null)
@@ -356,7 +396,7 @@ export default function App() {
         setAuthPassword('')
         setAuthStatus('')
         await fetchServerState(data.user.id)
-        saveToServer(state, data.user.id)
+        await saveToServer(state, data.user.id)
       }
     } catch (error) {
       setAuthStatus(error instanceof Error ? error.message : 'Authentication failed')
