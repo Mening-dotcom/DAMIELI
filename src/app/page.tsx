@@ -4,94 +4,139 @@ import { AppState, UserProfile, Job, Education, Certification, Language, Generat
 import { loadState, saveState, calcProfileStrength, buildProfileText, uid, defaultProfile, defaultState } from '@/lib/state'
 import { CV_TEMPLATES, renderCV } from '@/lib/templates'
 
-// ─── Download helpers ──────────────────────────────────────────────
-async function downloadPDF(profile: UserProfile, cvData: CVData, role: string) {
-  const { jsPDF } = await import('jspdf')
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' })
-  const W = 210, M = 18, TW = W - M * 2
-  let y = 20
+// ─── Robust PDF export that avoids cropping ──────────────────────────────
+async function downloadPDF(profile: any, cvData: any, role: string) {
+  try {
+    const { jsPDF } = await import('jspdf')
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
 
-  const line = (text: string, size: number, bold = false, color = '#111111') => {
-    doc.setFontSize(size)
-    doc.setFont('helvetica', bold ? 'bold' : 'normal')
-    doc.setTextColor(color)
-    const lines = doc.splitTextToSize(text, TW) as string[]
-    lines.forEach((l: string) => { doc.text(l, M, y); y += size * 0.45 })
-    y += 1
-  }
+    const W = 210, M = 15, TW = W - M * 2
+    const pageHeight = doc.internal.pageSize.getHeight()
+    const maxY = pageHeight - 15
+    let y = 15
 
-  const section = (title: string) => {
-    y += 3
-    doc.setFontSize(9); doc.setFont('helvetica', 'bold')
-    doc.setTextColor('#555555')
-    doc.text(title.toUpperCase(), M, y); y += 2
-    doc.setDrawColor('#dddddd'); doc.setLineWidth(0.3)
-    doc.line(M, y, M + TW, y); y += 5
-  }
+    const ensureSpace = (neededSpace: number) => {
+      if (y + neededSpace > maxY) {
+        doc.addPage()
+        y = 15
+      }
+    }
 
-  // Header
-  line(profile.name, 22, true, '#111111'); y += 1
-  const contact = [profile.email, profile.phone, profile.location, profile.linkedin].filter(Boolean).join('  |  ')
-  if (contact) line(contact, 9, false, '#555555')
-  y += 4
-
-  if (cvData.summary) { section('Professional Summary'); line(cvData.summary, 10) }
-
-  if (cvData.experience?.length) {
-    section('Experience')
-    cvData.experience.forEach(exp => {
-      doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor('#111111')
-      doc.text(exp.title, M, y)
-      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor('#777777')
-      doc.text(exp.dates || '', W - M, y, { align: 'right' })
-      y += 5
-      doc.setFontSize(10); doc.setFont('helvetica', 'italic'); doc.setTextColor('#444444')
-      doc.text(exp.company + (exp.location ? ` — ${exp.location}` : ''), M, y); y += 5
-      exp.bullets?.forEach(b => {
-        doc.setFontSize(10); doc.setFont('helvetica', 'normal'); doc.setTextColor('#333333')
-        const lines = doc.splitTextToSize(`• ${b}`, TW - 3) as string[]
-        lines.forEach((l: string) => { doc.text(l, M + 2, y); y += 4.5 })
+    const line = (text: string, size: number, bold = false, color = '#111111', indent = 0) => {
+      if (!text) return
+      doc.setFontSize(size)
+      doc.setFont('helvetica', bold ? 'bold' : 'normal')
+      doc.setTextColor(color)
+      const width = TW - indent
+      const wrapped = doc.splitTextToSize(text, width) as string[]
+      wrapped.forEach((l: string) => {
+        ensureSpace(size * 0.55 + 1)
+        doc.text(l, M + indent, y)
+        y += size * 0.55 + 0.4
       })
-      y += 3
-      if (y > 270) { doc.addPage(); y = 20 }
-    })
-  }
+      y += 0.6
+    }
 
-  if (cvData.education?.length) {
-    section('Education')
-    cvData.education.forEach(e => {
-      doc.setFontSize(11); doc.setFont('helvetica', 'bold'); doc.setTextColor('#111111')
-      doc.text(e.degree, M, y)
-      doc.setFontSize(9); doc.setFont('helvetica', 'normal'); doc.setTextColor('#777777')
-      doc.text(e.year || '', W - M, y, { align: 'right' })
-      y += 5
-      doc.setFontSize(10); doc.setFont('helvetica', 'italic'); doc.setTextColor('#444444')
-      doc.text(e.school, M, y); y += 5
-      if (e.note) { line(e.note, 9, false, '#555555') }
+    const section = (title: string) => {
+      ensureSpace(12)
       y += 2
-    })
-  }
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'bold')
+      doc.setTextColor('#444444')
+      doc.text(title.toUpperCase(), M, y)
+      y += 2.2
+      doc.setDrawColor('#e5e7eb')
+      doc.setLineWidth(0.2)
+      doc.line(M, y, M + TW, y)
+      y += 4
+    }
 
-  if (cvData.skills?.length) {
-    section('Skills')
-    line(cvData.skills.join(' • '), 10)
-    y += 2
-  }
+    if (profile?.name) line(profile.name, 20, true, '#111111')
+    const contact = [profile?.email, profile?.phone, profile?.location, profile?.linkedin].filter(Boolean).join('  |   ')
+    if (contact) line(contact, 8.5, false, '#555555')
+    y += 1.5
 
-  if (cvData.certifications?.length) {
-    section('Certifications')
-    cvData.certifications.forEach(c => line(`• ${c}`, 10))
-    y += 2
-  }
+    if (cvData?.summary) {
+      section('Professional Summary')
+      line(cvData.summary, 9.5)
+    }
 
-  if (cvData.languages?.length) {
-    section('Languages')
-    line(cvData.languages.join('  |  '), 10)
-  }
+    if (cvData?.experience && Array.isArray(cvData.experience)) {
+      section('Experience')
+      cvData.experience.forEach((exp: any) => {
+        if (!exp) return
+        ensureSpace(16)
 
-  doc.save(`${profile.name.replace(/ /g, '_')}_CV_${role.replace(/ /g, '_')}.pdf`)
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor('#111111')
+        doc.text(exp.title || 'Position', M, y)
+        doc.setFontSize(8.5)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor('#666666')
+        doc.text(exp.dates || '', W - M, y, { align: 'right' })
+        y += 4.2
+
+        doc.setFontSize(9.5)
+        doc.setFont('helvetica', 'italic')
+        doc.setTextColor('#333333')
+        doc.text((exp.company || '') + (exp.location ? ` — ${exp.location}` : ''), M, y)
+        y += 4.2
+
+        if (exp.bullets && Array.isArray(exp.bullets)) {
+          exp.bullets.forEach((b: string) => {
+            if (!b) return
+            line(`• ${b}`, 9, false, '#333333', 2)
+          })
+        }
+        y += 1.5
+      })
+    }
+
+    if (cvData?.education && Array.isArray(cvData.education)) {
+      section('Education')
+      cvData.education.forEach((e: any) => {
+        if (!e) return
+        ensureSpace(12)
+        doc.setFontSize(10)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor('#111111')
+        doc.text(e.degree || 'Degree', M, y)
+        doc.setFontSize(8.5)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor('#666666')
+        doc.text(e.year || '', W - M, y, { align: 'right' })
+        y += 4.2
+        doc.setFontSize(9.5)
+        doc.setFont('helvetica', 'italic')
+        doc.setTextColor('#444444')
+        doc.text(e.school || '', M, y)
+        y += 4.2
+        if (e.note) line(e.note, 8.5, false, '#555555')
+        y += 1
+      })
+    }
+
+    if (cvData?.skills && Array.isArray(cvData.skills) && cvData.skills.length > 0) {
+      section('Skills')
+      line(cvData.skills.join('  •  '), 9)
+    }
+
+    if (cvData?.certifications && Array.isArray(cvData.certifications) && cvData.certifications.length > 0) {
+      section('Certifications')
+      line(cvData.certifications.join('  •  '), 9)
+    }
+
+    if (cvData?.languages && Array.isArray(cvData.languages) && cvData.languages.length > 0) {
+      section('Languages')
+      line(cvData.languages.join('  |   '), 9)
+    }
+
+    doc.save(`${(profile?.name || 'CV').replace(/ /g, '_')}_CV.pdf`)
+  } catch (error) {
+    console.error('PDF Generation crashed:', error)
+  }
 }
-
 async function downloadWord(profile: UserProfile, cvData: CVData, role: string) {
   const { Document, Packer, Paragraph, TextRun, HeadingLevel, BorderStyle, AlignmentType } = await import('docx')
 
@@ -203,6 +248,13 @@ export default function App() {
   const [certForm, setCertForm] = useState<Partial<Certification>>({})
   const [langForm, setLangForm] = useState<Partial<Language>>({})
 
+  const hasMeaningfulProfile = (profile?: Partial<UserProfile>) => {
+    if (!profile) return false
+    const textFields = [profile.name, profile.headline, profile.email, profile.phone, profile.location, profile.linkedin, profile.portfolio, profile.summary, profile.achievements, profile.uploadedCVText]
+    if (textFields.some(value => typeof value === 'string' && value.trim())) return true
+    return Boolean(profile.jobs?.length || profile.education?.length || profile.certifications?.length || profile.languages?.length || profile.skills?.length)
+  }
+
   const fetchServerState = async (userId?: string | null) => {
     const activeUserId = userId ?? currentUser?.id
     if (!activeUserId) return
@@ -223,11 +275,13 @@ export default function App() {
         const serverStats = profileData.state.stats || state.stats
         const localState = loadState()
         const localIsDefault = localState.profile.name === defaultProfile.name && localState.history.length === 0
+        const localHasProfileData = hasMeaningfulProfile(localState.profile)
+        const serverHasProfileData = hasMeaningfulProfile(serverProfile)
 
-        if (localIsDefault || serverProfile.name !== defaultProfile.name) {
+        if (serverHasProfileData || localIsDefault || !localHasProfileData) {
           const mergedState: AppState = {
-            profile: { ...defaultProfile, ...serverProfile },
-            history: localState.history.length > 0 ? localState.history : historyData.success ? historyData.history : [],
+            profile: serverHasProfileData ? { ...defaultProfile, ...serverProfile } : { ...defaultProfile, ...localState.profile },
+            history: historyData.success ? historyData.history : localState.history,
             stats: { ...localState.stats, ...serverStats },
             templateId: localState.templateId || defaultState.templateId,
             outputLanguage: localState.outputLanguage || defaultState.outputLanguage,
