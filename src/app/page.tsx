@@ -4,12 +4,54 @@ import { AppState, UserProfile, Job, Education, Certification, Language, Generat
 import { loadState, saveState, calcProfileStrength, buildProfileText, uid, defaultProfile, defaultState } from '@/lib/state'
 import { CV_TEMPLATES, renderCV } from '@/lib/templates'
 
-// ─── Robust PDF export that avoids cropping ──────────────────────────────
-async function downloadPDF(profile: any, cvData: any, role: string) {
+// ─── PDF export that matches the visible CV preview ───────────────────────
+async function downloadPDF(profile: any, cvData: any, role: string, previewNode?: HTMLDivElement | null) {
   try {
     const { jsPDF } = await import('jspdf')
-    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
 
+    if (previewNode) {
+      try {
+        const { default: html2canvas } = await import('html2canvas')
+        const canvas = await html2canvas(previewNode, {
+          scale: 2,
+          useCORS: true,
+          backgroundColor: '#ffffff',
+          logging: false,
+          scrollX: 0,
+          scrollY: 0,
+          windowWidth: previewNode.scrollWidth,
+          windowHeight: previewNode.scrollHeight,
+        })
+
+        const pdf = new jsPDF({ unit: 'mm', format: 'a4' })
+        const pageWidth = pdf.internal.pageSize.getWidth()
+        const pageHeight = pdf.internal.pageSize.getHeight()
+        const margin = 12
+        const imgWidth = pageWidth - margin * 2
+        const imgHeight = (canvas.height * imgWidth) / canvas.width
+        const imgData = canvas.toDataURL('image/png')
+
+        let heightLeft = imgHeight
+        let position = margin
+        let pageIndex = 0
+
+        while (heightLeft > 0) {
+          if (pageIndex > 0) pdf.addPage()
+          const pageContentHeight = Math.min(pageHeight - margin * 2, heightLeft)
+          pdf.addImage(imgData, 'PNG', margin, position, imgWidth, pageContentHeight)
+          heightLeft -= pageContentHeight
+          position = margin - (pageContentHeight - (pageHeight - margin * 2))
+          pageIndex += 1
+        }
+
+        pdf.save(`${(profile?.name || 'CV').replace(/ /g, '_')}_CV.pdf`)
+        return
+      } catch (error) {
+        console.error('Preview PDF export failed, using text fallback:', error)
+      }
+    }
+
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const W = 210, M = 15, TW = W - M * 2
     const pageHeight = doc.internal.pageSize.getHeight()
     const maxY = pageHeight - 15
@@ -241,6 +283,7 @@ export default function App() {
   const [authStatus, setAuthStatus] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const previewRef = useRef<HTMLDivElement | null>(null)
 
   // Form state for modals
   const [jobForm, setJobForm] = useState<Partial<Job>>({})
@@ -842,7 +885,7 @@ export default function App() {
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => downloadWord(state.profile, currentCV.cvData, currentCV.role)} style={ghostBtnStyle}>⬇ Word</button>
-                    <button onClick={() => downloadPDF(state.profile, currentCV.cvData, currentCV.role)} style={primaryBtnStyle}>⬇ PDF</button>
+                    <button onClick={() => downloadPDF(state.profile, currentCV.cvData, currentCV.role, previewRef.current)} style={primaryBtnStyle}>⬇ PDF</button>
                   </div>
                 </div>
 
@@ -889,7 +932,7 @@ export default function App() {
                   ))}
                 </div>
 
-                {cvTab === 'preview' && <CVPreview profile={state.profile} cvData={currentCV.cvData} templateId={selectedTemplate} />}
+                {cvTab === 'preview' && <CVPreview profile={state.profile} cvData={currentCV.cvData} templateId={selectedTemplate} containerRef={previewRef} />}
                 {cvTab === 'raw' && (
                   <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 24 }}>
                     <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, color: 'var(--text)', fontFamily: 'DM Sans', lineHeight: 1.7 }}>{buildRawText(currentCV)}</pre>
@@ -1085,7 +1128,7 @@ export default function App() {
 
 // ─── Sub-components ────────────────────────────────────────────────
 
-function CVPreview({ profile, cvData, templateId }: { profile: UserProfile; cvData: CVData; templateId: string }) {
+function CVPreview({ profile, cvData, templateId, containerRef }: { profile: UserProfile; cvData: CVData; templateId: string; containerRef?: React.Ref<HTMLDivElement> }) {
   const contact = [profile.email, profile.phone, profile.location, profile.linkedin, profile.portfolio].filter(Boolean)
   const isAts = templateId === 'ats'
   const isCreative = templateId === 'creative'
@@ -1121,7 +1164,7 @@ function CVPreview({ profile, cvData, templateId }: { profile: UserProfile; cvDa
   }
 
   return (
-    <div style={containerStyle}>
+    <div ref={containerRef} style={containerStyle}>
       <div style={headingStyle}>{profile.name}</div>
       {profile.headline && <div style={{ fontSize: 13, color: isCreative ? '#cbd5e1' : '#444', marginBottom: 6, fontStyle: 'italic' }}>{profile.headline}</div>}
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px 14px', fontSize: 12, color: isCreative ? '#cbd5e1' : '#555', marginBottom: 22 }}>
