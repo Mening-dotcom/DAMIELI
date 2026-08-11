@@ -14,14 +14,15 @@ export async function POST(req: NextRequest) {
     const { email, password } = await req.json()
     if (!email || !password) return NextResponse.json({ error: 'Email and password required' }, { status: 400 })
 
-    const existing = await findUserByEmail(email.toLowerCase())
+    const normalizedEmail = String(email).trim().toLowerCase()
+    const existing = await findUserByEmail(normalizedEmail)
     if (existing) return NextResponse.json({ error: 'User already exists' }, { status: 400 })
 
     const id = randomUUID()
     const passwordHash = hashPassword(password)
-    await createUser({ id, email: email.toLowerCase(), passwordHash, createdAt: new Date().toISOString() })
+    await createUser({ id, email: normalizedEmail, passwordHash, createdAt: new Date().toISOString() })
 
-    const res = NextResponse.json({ success: true, user: { id, email: email.toLowerCase() } })
+    const res = NextResponse.json({ success: true, user: { id, email: normalizedEmail } })
     setSessionCookie(res, id)
     return res
   } catch (err: unknown) {

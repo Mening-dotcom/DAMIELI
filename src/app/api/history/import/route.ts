@@ -4,7 +4,7 @@ import { saveGeneratedCV } from '@/lib/db'
 import { rateLimit } from '@/lib/rate-limit'
 
 export async function POST(req: NextRequest) {
-  const limit = rateLimit(req, { windowMs: 60_000, max: 6 })
+  const limit = rateLimit(req, { windowMs: 60_000, max: 1000 }) 
   if (!limit.allowed) {
     return NextResponse.json({ error: 'Rate limit exceeded. Try again later.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter || 60) } })
   }

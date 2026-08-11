@@ -4,10 +4,17 @@ import { AppState, UserProfile, Job, Education, Certification, Language, Generat
 import { loadState, saveState, calcProfileStrength, buildProfileText, uid, defaultProfile, defaultState } from '@/lib/state'
 import { CV_TEMPLATES, renderCV } from '@/lib/templates'
 
+const resolveTemplateId = (value?: string) => {
+  const normalized = value?.trim().toLowerCase()
+  if (normalized === 'ats' || normalized === 'creative' || normalized === 'modern') return normalized
+  return 'modern'
+}
+
 // ─── PDF export that stays readable and reflects the chosen CV style ─────
 async function downloadPDF(profile: any, cvData: any, role: string, previewNode?: HTMLDivElement | null, templateId = 'modern') {
   try {
     const { jsPDF } = await import('jspdf')
+    const normalizedTemplateId = resolveTemplateId(templateId)
 
     const doc = new jsPDF({ unit: 'mm', format: 'a4' })
     const W = 210, M = 15, TW = W - M * 2
@@ -15,8 +22,8 @@ async function downloadPDF(profile: any, cvData: any, role: string, previewNode?
     const maxY = pageHeight - 15
     let y = 15
 
-    const isAts = templateId === 'ats'
-    const isCreative = templateId === 'creative'
+    const isAts = normalizedTemplateId === 'ats'
+    const isCreative = normalizedTemplateId === 'creative'
     const accentColor = isCreative ? '#2563eb' : isAts ? '#1d4ed8' : '#0f766e'
     const titleColor = isCreative ? '#7dd3fc' : isAts ? '#0f172a' : '#111111'
     const bodyColor = isCreative ? '#e2e8f0' : '#333333'
@@ -74,9 +81,20 @@ async function downloadPDF(profile: any, cvData: any, role: string, previewNode?
       doc.setLineWidth(0.7)
       doc.line(M, y, M + TW * 0.55, y)
       y += 2.6
-    }
-
-    if (cvData?.summary) {
+      section('Profile Snapshot', true)
+      line(profile?.headline || 'Creative-focused profile', 8.8, false, '#cbd5e1')
+      if (cvData?.summary) line(cvData.summary, 8.3, false, bodyColor)
+    } else if (isAts) {
+      section('Contact Information', true)
+      line(`Email: ${profile?.email || ''}`, 8.2, false, '#333333')
+      if (profile?.phone) line(`Phone: ${profile.phone}`, 8.2, false, '#333333')
+      if (profile?.location) line(`Location: ${profile.location}`, 8.2, false, '#333333')
+      if (profile?.linkedin) line(`LinkedIn: ${profile.linkedin}`, 8.2, false, '#333333')
+      if (cvData?.summary) {
+        section('Professional Summary', true)
+        line(cvData.summary, 8.5, false, bodyColor)
+      }
+    } else if (cvData?.summary) {
       section('Professional Summary', isAts)
       line(cvData.summary, 8.8, false, bodyColor)
     }
@@ -152,7 +170,7 @@ async function downloadPDF(profile: any, cvData: any, role: string, previewNode?
       line(cvData.languages.join('  |   '), 8.2, false, bodyColor)
     }
 
-    doc.save(`${(profile?.name || 'CV').replace(/ /g, '_')}_CV.pdf`)
+    doc.save(`${(profile?.name || 'CV').replace(/ /g, '_')}_${(templateId || 'modern').toUpperCase()}_CV.pdf`)
   } catch (error) {
     console.error('PDF Generation crashed:', error)
   }
@@ -260,16 +278,28 @@ export default function App() {
   const [authEmail, setAuthEmail] = useState('')
   const [authPassword, setAuthPassword] = useState('')
   const [authStatus, setAuthStatus] = useState('')
+  const [syncStatus, setSyncStatus] = useState('')
   const [authLoading, setAuthLoading] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const previewRef = useRef<HTMLDivElement | null>(null)
+  const stateRef = useRef<AppState>(state)
+  const currentUserRef = useRef<{ id: string; email: string } | null>(currentUser)
 
   // Form state for modals
   const [jobForm, setJobForm] = useState<Partial<Job>>({})
   const [eduForm, setEduForm] = useState<Partial<Education>>({})
   const [certForm, setCertForm] = useState<Partial<Certification>>({})
   const [langForm, setLangForm] = useState<Partial<Language>>({})
+
+  useEffect(() => {
+    stateRef.current = state
+  }, [state])
+
+  useEffect(() => {
+    currentUserRef.current = currentUser
+  }, [currentUser])
 
   const hasMeaningfulProfile = (profile?: Partial<UserProfile>) => {
     if (!profile) return false
@@ -279,7 +309,7 @@ export default function App() {
   }
 
   const fetchServerState = async (userId?: string | null) => {
-    const activeUserId = userId ?? currentUser?.id
+    const activeUserId = userId ?? currentUserRef.current?.id
     if (!activeUserId) return
     try {
       const [profileRes, historyRes] = await Promise.all([
@@ -294,33 +324,39 @@ export default function App() {
       }
 
       const localState = loadState()
+      const latestState = stateRef.current
       const localHasProfileData = hasMeaningfulProfile(localState.profile) || localState.history.length > 0
+      const serverState = profileData.success ? profileData.state : null
+      const serverProfile = serverState?.profile || {}
+      const serverStats = serverState?.stats || latestState.stats
+      const serverHistory = serverState?.history || (historyData.success ? historyData.history : localState.history)
+      const serverTemplateId = serverState?.templateId || localState.templateId || defaultState.templateId
+      const serverOutputLanguage = serverState?.outputLanguage || localState.outputLanguage || defaultState.outputLanguage
+      const localIsDefault = localState.profile.name === defaultProfile.name && localState.history.length === 0
+      const localHasMeaningfulData = hasMeaningfulProfile(localState.profile)
+      const serverHasProfileData = hasMeaningfulProfile(serverProfile)
 
-      if (profileData.success && profileData.state?.profile) {
-        const serverProfile = profileData.state.profile
-        const serverStats = profileData.state.stats || state.stats
-        const localIsDefault = localState.profile.name === defaultProfile.name && localState.history.length === 0
-        const localHasMeaningfulData = hasMeaningfulProfile(localState.profile)
-        const serverHasProfileData = hasMeaningfulProfile(serverProfile)
-
-        if (serverHasProfileData || localIsDefault || !localHasMeaningfulData) {
-          const mergedState: AppState = {
-            profile: serverHasProfileData ? { ...defaultProfile, ...serverProfile } : { ...defaultProfile, ...localState.profile },
-            history: historyData.success ? historyData.history : localState.history,
-            stats: { ...localState.stats, ...serverStats },
-            templateId: localState.templateId || defaultState.templateId,
-            outputLanguage: localState.outputLanguage || defaultState.outputLanguage,
-          }
-          save(mergedState)
+      if (serverHasProfileData || localIsDefault || !localHasMeaningfulData) {
+        const mergedState: AppState = {
+          profile: serverHasProfileData ? { ...defaultProfile, ...serverProfile } : { ...defaultProfile, ...localState.profile },
+          history: serverHistory,
+          stats: { ...latestState.stats, ...localState.stats, ...serverStats },
+          templateId: serverTemplateId,
+          outputLanguage: serverOutputLanguage,
         }
+        setSelectedTemplate(resolveTemplateId(mergedState.templateId))
+        setOutputLanguage((mergedState.outputLanguage || 'English') as 'English' | 'Spanish')
+        save(mergedState)
       } else if (localHasProfileData) {
         const mergedState: AppState = {
           profile: { ...defaultProfile, ...localState.profile },
-          history: historyData.success ? historyData.history : localState.history,
-          stats: { ...localState.stats, ...state.stats },
-          templateId: localState.templateId || defaultState.templateId,
-          outputLanguage: localState.outputLanguage || defaultState.outputLanguage,
+          history: serverHistory,
+          stats: { ...latestState.stats, ...localState.stats, ...stateRef.current.stats },
+          templateId: serverTemplateId,
+          outputLanguage: serverOutputLanguage,
         }
+        setSelectedTemplate(resolveTemplateId(mergedState.templateId))
+        setOutputLanguage((mergedState.outputLanguage || 'English') as 'English' | 'Spanish')
         save(mergedState)
         await saveToServer(mergedState, activeUserId)
       }
@@ -331,51 +367,85 @@ export default function App() {
 
   const fetchAuthState = async () => {
     try {
+      setSyncStatus('Checking account...')
       const res = await fetch('/api/auth/me', { credentials: 'include' })
       const data = await res.json()
       if (data.success && data.user) {
         setCurrentUser(data.user)
         await fetchServerState(data.user.id)
+        setSyncStatus('Profile restored from your account.')
       } else {
         setCurrentUser(null)
+        setSyncStatus('')
       }
     } catch {
       setCurrentUser(null)
+      setSyncStatus('Unable to connect to account sync.')
     }
   }
 
   useEffect(() => {
     const loaded = loadState()
     setState(loaded)
-    setOutputLanguage(loaded.outputLanguage || 'English')
+    setSelectedTemplate(resolveTemplateId(loaded.templateId))
+    setOutputLanguage((loaded.outputLanguage || 'English') as 'English' | 'Spanish')
     fetchAuthState()
   }, [])
 
   useEffect(() => {
-    const updateViewport = () => setIsMobile(window.innerWidth < 900)
+    const updateViewport = () => {
+      const mobile = window.innerWidth < 900
+      setIsMobile(mobile)
+      if (!mobile) setSidebarOpen(false)
+    }
     updateViewport()
     window.addEventListener('resize', updateViewport)
     return () => window.removeEventListener('resize', updateViewport)
   }, [])
 
   const saveToServer = async (s: AppState, userId?: string) => {
-    const activeUserId = userId || currentUser?.id
+    const activeUserId = userId || currentUserRef.current?.id
     if (!activeUserId) return
     try {
       await fetch('/api/profile', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profile: s.profile, stats: s.stats }),
+        body: JSON.stringify({
+          profile: s.profile,
+          stats: s.stats,
+          history: s.history,
+          templateId: resolveTemplateId(s.templateId || selectedTemplate || 'modern'),
+          outputLanguage: s.outputLanguage || outputLanguage,
+        }),
       })
     } catch {
       // fail silently, keep local copy
     }
   }
 
-  const save = (s: AppState) => { setState(s); saveState(s); saveToServer(s) }
+  const save = (s: AppState) => {
+    const nextState: AppState = {
+      ...s,
+      templateId: resolveTemplateId(s.templateId || selectedTemplate || 'modern'),
+      outputLanguage: s.outputLanguage || outputLanguage || 'English',
+    }
+    setState(nextState)
+    saveState(nextState)
+    void saveToServer(nextState)
+  }
+
   const updateProfile = (p: Partial<UserProfile>) => save({ ...state, profile: { ...state.profile, ...p } })
   const updateAppState = (patch: Partial<AppState>) => save({ ...state, ...patch })
+  const updateTemplateSelection = (templateId: string) => {
+    const normalizedTemplateId = resolveTemplateId(templateId)
+    setSelectedTemplate(normalizedTemplateId)
+    save({ ...state, templateId: normalizedTemplateId })
+  }
+
+  const shouldSaveLocalStateToServer = (s: AppState) => {
+    return hasMeaningfulProfile(s.profile) || s.history.length > 0
+  }
 
   const authRequest = async (mode: 'login' | 'signup') => {
     setAuthLoading(true)
@@ -392,27 +462,7 @@ export default function App() {
 
       if (!data.success) {
         if (mode === 'signup' && data.error === 'User already exists') {
-          setAuthStatus('Account already exists. Signing you in…')
-          const loginRes = await fetch('/api/auth/login', {
-            method: 'POST',
-            credentials: 'include',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-          })
-          const loginData = await loginRes.json()
-          if (!loginData.success) {
-            setAuthStatus(loginData.error || 'Unable to authenticate')
-            return
-          }
-          if (loginData.user) {
-            setCurrentUser(loginData.user)
-            setAuthModal(null)
-            setAuthEmail('')
-            setAuthPassword('')
-            setAuthStatus('')
-            await fetchServerState(loginData.user.id)
-            await saveToServer(state, loginData.user.id)
-          }
+          setAuthStatus('This email already has an account. Please use Login instead.')
           return
         }
         setAuthStatus(data.error || 'Unable to authenticate')
@@ -425,8 +475,12 @@ export default function App() {
         setAuthEmail('')
         setAuthPassword('')
         setAuthStatus('')
+        setSyncStatus('Signing in and syncing profile...')
         await fetchServerState(data.user.id)
-        await saveToServer(state, data.user.id)
+        if (shouldSaveLocalStateToServer(stateRef.current)) {
+          await saveToServer(stateRef.current, data.user.id)
+        }
+        setSyncStatus('Profile restored from your account.')
       }
     } catch (error) {
       setAuthStatus(error instanceof Error ? error.message : 'Authentication failed')
@@ -446,10 +500,11 @@ export default function App() {
   }
   const updateOutputLanguage = (language: 'English' | 'Spanish') => {
     setOutputLanguage(language)
-    updateAppState({ outputLanguage: language })
+    save({ ...state, outputLanguage: language })
   }
 
   const strength = calcProfileStrength(state.profile)
+  const effectiveTemplateId = resolveTemplateId(currentCV?.templateId || selectedTemplate || state.templateId || 'modern')
   const responsiveStatsGrid = isMobile ? '1fr' : 'repeat(3, minmax(0, 1fr))'
   const responsiveSplitGrid = isMobile ? '1fr' : '1.4fr 1fr'
   const responsiveTwoColGrid = isMobile ? '1fr' : '1fr 1fr'
@@ -492,13 +547,19 @@ export default function App() {
         matchedKeywords: data.cvData.matchedKeywords || [],
         timeSavedMinutes: 45,
         cvData: data.cvData,
-        templateId: selectedTemplate,
+        templateId: resolveTemplateId(selectedTemplate),
       }
       setTailoringNotes(data.cvData.tailoringNotes || '')
       setCurrentCV(cv)
       setCvTab('preview')
       const newHistory = [cv, ...state.history].slice(0, 50)
-      save({ ...state, history: newHistory, stats: { ...state.stats, cvsGenerated: state.stats.cvsGenerated + 1, jobsAnalyzed: state.stats.jobsAnalyzed + 1, totalTimeSaved: state.stats.totalTimeSaved + 45 } })
+      save({
+        ...state,
+        history: newHistory,
+        stats: { ...state.stats, cvsGenerated: state.stats.cvsGenerated + 1, jobsAnalyzed: state.stats.jobsAnalyzed + 1, totalTimeSaved: state.stats.totalTimeSaved + 45 },
+        templateId: resolveTemplateId(selectedTemplate),
+        outputLanguage,
+      })
       setGenStatus('done')
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Unknown error'
@@ -509,7 +570,7 @@ export default function App() {
 
   // ── CV text ──
   const buildRawText = (cv: GeneratedCV) => {
-    const templateId = selectedTemplate || cv.templateId || state.templateId || 'modern'
+    const templateId = resolveTemplateId(cv.templateId || selectedTemplate || state.templateId || 'modern')
     return renderCV(state.profile, cv.cvData, templateId)
   }
 
@@ -526,10 +587,18 @@ export default function App() {
   return (
     <div style={{ display: 'flex', minHeight: '100vh' }}>
       {/* Sidebar */}
-      <nav style={{ width: isMobile ? '100%' : 240, background: 'linear-gradient(180deg, rgba(4,93,113,0.98), rgba(7,80,101,0.98))', borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.12)', borderBottom: isMobile ? '1px solid rgba(255,255,255,0.08)' : 'none', display: 'flex', flexDirection: 'column', position: isMobile ? 'relative' : 'fixed', top: 0, left: 0, bottom: isMobile ? 'auto' : 0, height: isMobile ? 'auto' : '100vh', zIndex: 10, padding: isMobile ? '16px 0 10px' : '22px 0' }}>
+      {isMobile && (
+        <div style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'rgba(255,255,255,0.96)', borderBottom: '1px solid rgba(15,23,42,0.08)', backdropFilter: 'blur(8px)' }}>
+          <button onClick={() => setSidebarOpen(v => !v)} style={{ border: '1px solid rgba(15,23,42,0.12)', background: '#fff', color: '#0b3d91', borderRadius: 10, padding: '8px 10px', cursor: 'pointer' }}>☰</button>
+          <div style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 800, color: '#0b3d91' }}>DAMIELI</div>
+        </div>
+      )}
+      {isMobile && sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 20 }} />}
+      <nav style={{ width: isMobile ? 260 : 240, background: 'linear-gradient(180deg, rgba(4,93,113,0.98), rgba(7,80,101,0.98))', borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.12)', borderBottom: isMobile ? '1px solid rgba(255,255,255,0.08)' : 'none', display: 'flex', flexDirection: 'column', position: isMobile ? 'fixed' : 'fixed', top: 0, left: 0, bottom: 0, height: isMobile ? '100vh' : '100vh', zIndex: 25, padding: isMobile ? '16px 0 10px' : '22px 0', transform: isMobile ? (sidebarOpen ? 'translateX(0)' : 'translateX(-100%)') : 'translateX(0)', transition: 'transform 0.2s ease' }}>
         <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ fontFamily: 'Syne', fontSize: 24, fontWeight: 900, color: 'var(--accent)', letterSpacing: -1 }}>DAMIELI</div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, maxWidth: 200 }}>Fast resume studio with easy CV creation and clean downloads.</div>
+          {syncStatus ? <div style={{ marginTop: 10, fontSize: 11, color: '#bfdbfe', lineHeight: 1.4 }}>{syncStatus}</div> : null}
         </div>
         <div style={{ padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 10 }}>
           {currentUser ? (
@@ -555,7 +624,7 @@ export default function App() {
             const labels = ['Dashboard', 'Profile', 'Generate', 'History']
             const icons = ['◈', '◉', '⚡', '◎']
             return (
-              <button key={s} onClick={() => setScreen(s)} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 14, width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer', fontSize: 13, marginBottom: 8, background: screen === s ? 'rgba(124,58,237,0.14)' : 'transparent', color: screen === s ? '#fff' : 'var(--muted)', fontFamily: 'DM Sans', transition: 'all 0.15s' }}>
+              <button key={s} onClick={() => { setScreen(s); if (isMobile) setSidebarOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 14, width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer', fontSize: 13, marginBottom: 8, background: screen === s ? 'rgba(124,58,237,0.14)' : 'transparent', color: screen === s ? '#fff' : 'var(--muted)', fontFamily: 'DM Sans', transition: 'all 0.15s' }}>
                 <span style={{ fontSize: 13 }}>{icons[i]}</span> {labels[i]}
               </button>
             )
@@ -569,7 +638,7 @@ export default function App() {
       </nav>
 
       {/* Main */}
-      <main style={{ marginLeft: isMobile ? 0 : 240, flex: 1, padding: isMobile ? '20px 16px' : '32px 40px', maxWidth: 1040, width: '100%', overflowX: 'hidden' }}>
+      <main style={{ marginLeft: isMobile ? 0 : 240, flex: 1, padding: isMobile ? '20px 16px 32px' : '32px 40px', maxWidth: 1040, width: '100%', overflowX: 'hidden', paddingTop: isMobile ? 18 : '32px' }}>
 
         {/* ── HOME ── */}
         {screen === 'home' && (
@@ -877,7 +946,7 @@ export default function App() {
                   </div>
                   <div style={{ display: 'flex', gap: 8 }}>
                     <button onClick={() => downloadWord(state.profile, currentCV.cvData, currentCV.role)} style={ghostBtnStyle}>⬇ Word</button>
-                    <button onClick={() => downloadPDF(state.profile, currentCV.cvData, currentCV.role, previewRef.current, selectedTemplate || currentCV.templateId || 'modern')} style={primaryBtnStyle}>⬇ PDF</button>
+                    <button onClick={() => downloadPDF(state.profile, currentCV.cvData, currentCV.role, previewRef.current, effectiveTemplateId)} style={primaryBtnStyle}>⬇ PDF</button>
                   </div>
                 </div>
 
@@ -907,7 +976,7 @@ export default function App() {
                   <div style={{ fontFamily: 'Syne', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#666', marginBottom: 14 }}>📋 CV Template</div>
                   <div style={{ display: 'grid', gridTemplateColumns: responsiveTemplateGrid, gap: 10 }}>
                     {CV_TEMPLATES.map(t => (
-                      <button key={t.id} onClick={() => setSelectedTemplate(t.id)} style={{ padding: '12px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, color: selectedTemplate === t.id ? '#fff' : '#555', background: selectedTemplate === t.id ? '#c8f04a' : '#f3f4f6', border: selectedTemplate === t.id ? '2px solid #b8d63e' : '1px solid #d1d5db', fontWeight: selectedTemplate === t.id ? 600 : 500, transition: 'all 0.15s', textAlign: 'left' }}>
+                      <button key={t.id} onClick={() => updateTemplateSelection(t.id)} style={{ padding: '12px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, color: selectedTemplate === t.id ? '#fff' : '#555', background: selectedTemplate === t.id ? '#c8f04a' : '#f3f4f6', border: selectedTemplate === t.id ? '2px solid #b8d63e' : '1px solid #d1d5db', fontWeight: selectedTemplate === t.id ? 600 : 500, transition: 'all 0.15s', textAlign: 'left' }}>
                         <div style={{ fontWeight: 600, marginBottom: 2 }}>{t.name}</div>
                         <div style={{ fontSize: 11, opacity: 0.7 }}>{t.description}</div>
                       </button>
@@ -924,7 +993,7 @@ export default function App() {
                   ))}
                 </div>
 
-                {cvTab === 'preview' && <CVPreview profile={state.profile} cvData={currentCV.cvData} templateId={selectedTemplate} containerRef={previewRef} isMobile={isMobile} />}
+                {cvTab === 'preview' && <CVPreview profile={state.profile} cvData={currentCV.cvData} templateId={effectiveTemplateId} containerRef={previewRef} isMobile={isMobile} />}
                 {cvTab === 'raw' && (
                   <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 24 }}>
                     <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, color: 'var(--text)', fontFamily: 'DM Sans', lineHeight: 1.7 }}>{buildRawText(currentCV)}</pre>
@@ -974,7 +1043,7 @@ export default function App() {
                 </div>
                 <div style={{ display: 'flex', gap: 8, flexDirection: isMobile ? 'column' : 'row', width: isMobile ? '100%' : 'auto' }}>
                   <button onClick={() => { setCurrentCV(h); setScreen('generate') }} style={ghostBtnStyle}>View</button>
-                  <button onClick={() => downloadPDF(state.profile, h.cvData, h.role, undefined, h.templateId || selectedTemplate || 'modern')} style={primaryBtnStyle}>⬇ PDF</button>
+                  <button onClick={() => downloadPDF(state.profile, h.cvData, h.role, undefined, h.templateId || effectiveTemplateId)} style={primaryBtnStyle}>⬇ PDF</button>
                 </div>
               </div>
             ))}
@@ -992,7 +1061,7 @@ export default function App() {
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <button onClick={() => { setCurrentCV(h); setScreen('generate') }} style={ghostBtnStyle}>View</button>
-                      <button onClick={() => downloadPDF(state.profile, h.cvData, h.role, undefined, h.templateId || selectedTemplate || 'modern')} style={primaryBtnStyle}>⬇ PDF</button>
+                      <button onClick={() => downloadPDF(state.profile, h.cvData, h.role, undefined, h.templateId || effectiveTemplateId)} style={primaryBtnStyle}>⬇ PDF</button>
                     </div>
                   </div>
                 ))}
@@ -1009,7 +1078,7 @@ export default function App() {
           <div style={{ marginBottom: 18, color: 'var(--muted)', fontSize: 13 }}>
             {authModal === 'login'
               ? 'Enter your email and password to access your saved CV history.'
-              : 'Create a secure account to store your profile and generated CVs.'}
+              : 'Create a secure account to store your profile and generated CVs. If your email already exists, please sign in instead.'}
           </div>
           <Field label="Email">
             <Input value={authEmail} onChange={setAuthEmail} placeholder="you@example.com" />
@@ -1018,6 +1087,7 @@ export default function App() {
             <input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Password" style={inputStyle} />
           </Field>
           {authStatus && <div style={{ color: 'var(--danger)', marginTop: 10, fontSize: 12 }}>{authStatus}</div>}
+          {syncStatus && !authStatus && <div style={{ color: '#2563eb', marginTop: 10, fontSize: 12 }}>{syncStatus}</div>}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
             <button onClick={() => setAuthModal(null)} style={ghostBtnStyle}>Cancel</button>
             <button onClick={() => authRequest(authModal)} style={{ ...primaryBtnStyle, opacity: authLoading ? 0.6 : 1 }} disabled={authLoading}>{authLoading ? 'Working…' : authModal === 'login' ? 'Login' : 'Sign up'}</button>

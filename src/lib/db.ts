@@ -27,6 +27,7 @@ let useJsonFallback = false
 let useBetterSqlite = false
 let betterDb: any = null
 const JSON_DB_FILE = path.join(DATA_DIR, 'damieli.json')
+const LEGACY_DB_FILE = path.join(DATA_DIR, 'hireme.sqlite')
 
 // Try to load better-sqlite3 native binding if installed
 let betterSqliteInitialized = false
@@ -240,12 +241,16 @@ export async function createUser(user: UserRecord) {
   try {
     if (useJsonFallback) {
       const store = loadJsonStore()
+      const exists = store.users.some((x: any) => String(x.email).trim().toLowerCase() === String(user.email).trim().toLowerCase())
+      if (exists) {
+        throw new Error('Email already in use')
+      }
       store.users.push(user)
       persistJsonStore(store)
       return
     }
     if (useBetterSqlite && betterDb) {
-      const stmt = betterDb.prepare('INSERT OR IGNORE INTO users (id, email, passwordHash, createdAt) VALUES (?, ?, ?, ?)')
+      const stmt = betterDb.prepare('INSERT INTO users (id, email, passwordHash, createdAt) VALUES (?, ?, ?, ?)')
       stmt.run(user.id, user.email, user.passwordHash, user.createdAt)
       return
     }
@@ -260,27 +265,36 @@ export async function createUser(user: UserRecord) {
   }
 }
 
-export async function findUserByEmail(email: string) {
+export async function findUsersByEmail(email: string) {
   try {
+    const normalizedEmail = String(email).trim().toLowerCase()
     if (useJsonFallback) {
       const store = loadJsonStore()
-      const u = store.users.find((x: any) => x.email === email)
-      return u || null
+      return store.users.filter((x: any) => String(x.email).trim().toLowerCase() === normalizedEmail) as UserRecord[]
     }
     if (useBetterSqlite && betterDb) {
-      const row = betterDb.prepare('SELECT * FROM users WHERE email = ? LIMIT 1').get(email)
-      return (row || null) as UserRecord | null
+      const stmt = betterDb.prepare('SELECT * FROM users WHERE email = ?')
+      const rows = stmt.all(normalizedEmail)
+      return (rows || []) as UserRecord[]
     }
     const db = await prepareDb()
-    const stmt = db.prepare('SELECT * FROM users WHERE email = ? LIMIT 1')
-    stmt.bind([email])
-    const row = stmt.step() ? stmt.getAsObject() : null
+    const stmt = db.prepare('SELECT * FROM users WHERE email = ?')
+    stmt.bind([normalizedEmail])
+    const users: UserRecord[] = []
+    while (stmt.step()) {
+      users.push(stmt.getAsObject() as UserRecord)
+    }
     stmt.free()
-    return row as UserRecord | null
+    return users
   } catch (e) {
-    console.error('findUserByEmail error', e)
-    return null
+    console.error('findUsersByEmail error', e)
+    return []
   }
+}
+
+export async function findUserByEmail(email: string) {
+  const users = await findUsersByEmail(email)
+  return users.length ? users[0] : null
 }
 
 export async function findUserById(id: string) {
@@ -351,22 +365,30 @@ export async function saveGeneratedCV(cv: any, userId: string) {
   }
 }
 
-export async function saveAppState(userId: string, state: { profile: any; stats: any }) {
+export async function saveAppState(userId: string, state: { profile: any; stats: any; history?: any[]; templateId?: string; outputLanguage?: string }) {
   try {
+    const fullState = {
+      profile: state.profile || {},
+      stats: state.stats || {},
+      history: state.history || [],
+      templateId: state.templateId || 'modern',
+      outputLanguage: state.outputLanguage || 'English',
+    }
+
     if (useJsonFallback) {
       const store = loadJsonStore()
-      store.app_state[userId] = { profile: state.profile || {}, stats: state.stats || {} }
+      store.app_state[userId] = fullState
       persistJsonStore(store)
       return
     }
     if (useBetterSqlite && betterDb) {
       const stmt = betterDb.prepare('INSERT OR REPLACE INTO app_state (userId, profile, stats) VALUES (?, ?, ?)')
-      stmt.run(userId, JSON.stringify(state.profile || {}), JSON.stringify(state.stats || {}))
+      stmt.run(userId, JSON.stringify(fullState), JSON.stringify(state.stats || {}))
       return
     }
     const db = await prepareDb()
     const stmt = db.prepare('INSERT OR REPLACE INTO app_state VALUES (?, ?, ?)')
-    stmt.run(userId, JSON.stringify(state.profile || {}), JSON.stringify(state.stats || {}))
+    stmt.run(userId, JSON.stringify(fullState), JSON.stringify(state.stats || {}))
     stmt.free()
     persistDb(db)
   } catch (e) {
@@ -380,12 +402,19 @@ export async function getAppState(userId: string) {
       const store = loadJsonStore()
       const s = store.app_state[userId]
       if (!s) return null
-      return { profile: s.profile || {}, stats: s.stats || {} }
+      if (s.profile && typeof s.profile === 'object' && 'profile' in s.profile) {
+        return s.profile
+      }
+      return { profile: s.profile || {}, stats: s.stats || {}, history: s.history || [], templateId: s.templateId || 'modern', outputLanguage: s.outputLanguage || 'English' }
     }
     if (useBetterSqlite && betterDb) {
       const row = betterDb.prepare('SELECT * FROM app_state WHERE userId = ? LIMIT 1').get(userId)
       if (!row) return null
-      return { profile: JSON.parse(row.profile || '{}'), stats: JSON.parse(row.stats || '{}') }
+      const parsed = JSON.parse(row.profile || '{}')
+      if (parsed && typeof parsed === 'object' && 'profile' in parsed) {
+        return parsed
+      }
+      return { profile: parsed || {}, stats: JSON.parse(row.stats || '{}'), history: [], templateId: 'modern', outputLanguage: 'English' }
     }
     const db = await prepareDb()
     const stmt = db.prepare('SELECT * FROM app_state WHERE userId = ? LIMIT 1')
@@ -393,9 +422,16 @@ export async function getAppState(userId: string) {
     const row = stmt.step() ? stmt.getAsObject() : null
     stmt.free()
     if (!row) return null
+    const parsed = JSON.parse(row.profile || '{}')
+    if (parsed && typeof parsed === 'object' && 'profile' in parsed) {
+      return parsed
+    }
     return {
-      profile: JSON.parse(row.profile || '{}'),
+      profile: parsed || {},
       stats: JSON.parse(row.stats || '{}'),
+      history: [],
+      templateId: 'modern',
+      outputLanguage: 'English',
     }
   } catch (e) {
     console.error('getAppState error', e)
