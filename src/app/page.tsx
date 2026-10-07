@@ -272,6 +272,7 @@ export default function App() {
   const [jobsError, setJobsError] = useState('')
   const [jobsPage, setJobsPage] = useState(1)
   const [expandedJob, setExpandedJob] = useState<number | null>(null)
+  const [matching, setMatching] = useState(false)
   const JOBS_PER_PAGE = 8
   const [searchPrefs, setSearchPrefs] = useState({ modality: 'remote', seniority: 'Junior', minSalary: 0, zone: '', keywords: '' })
   useEffect(() => {
@@ -313,6 +314,29 @@ export default function App() {
       setJobsError(e?.message || 'Failed to load jobs')
     } finally {
       setJobsLoading(false)
+    }
+  }
+  async function scoreMatches() {
+    if (!jobsList.length || matching) return
+    setMatching(true)
+    try {
+      const profileText = buildProfileText(state.profile)
+      const res = await fetch('/api/match', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileText, jobs: jobsList.map((j: any) => ({ title: j.title, company: j.company, description: j.description })) }),
+      })
+      const data = await res.json()
+      if (data.success && Array.isArray(data.scores)) {
+        const byIdx = new Map<number, any>(data.scores.map((s: any) => [Number(s.i), s] as [number, any]))
+        const scored = jobsList.map((j: any, i: number) => {
+          const s = byIdx.get(i)
+          return { ...j, score: s && typeof s.score === 'number' ? s.score : null, reason: s && s.reason ? String(s.reason) : '' }
+        })
+        scored.sort((a: any, b: any) => (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score))
+        setJobsList(scored); setJobsPage(1); setExpandedJob(null)
+      }
+    } catch { /* ignore */ } finally {
+      setMatching(false)
     }
   }
   const [skillInput, setSkillInput] = useState('')
@@ -1073,7 +1097,10 @@ export default function App() {
                       : <><strong>{jobsList.length}</strong> roles that fit — from Mentorhood + Remotive</>}
                 </p>
               </div>
-              <button onClick={() => loadJobs()} disabled={jobsLoading} style={primaryBtnStyle}>↻ Refresh</button>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button onClick={scoreMatches} disabled={matching || !jobsList.length} style={{ ...primaryBtnStyle, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', boxShadow: 'none' }}>{matching ? 'Scoring…' : '⭐ Score matches'}</button>
+                <button onClick={() => loadJobs()} disabled={jobsLoading} style={primaryBtnStyle}>↻ Refresh</button>
+              </div>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1083,7 +1110,13 @@ export default function App() {
                 return (
                 <div key={idx} style={{ border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: 14, background: '#fff' }}>
                   <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>{job.title}</div>
-                  <div style={{ color: 'var(--muted)', fontSize: 13 }}>{job.company} · <span style={{ textTransform: 'capitalize' }}>{job.source}</span></div>
+                  <div style={{ color: '#64748b', fontSize: 13 }}>{job.company} · <span style={{ textTransform: 'capitalize' }}>{job.source}</span></div>
+                  {typeof job.score === 'number' && (
+                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <span style={{ fontSize: 12, fontWeight: 800, padding: '2px 8px', borderRadius: 999, color: '#fff', background: job.score >= 70 ? '#059669' : job.score >= 40 ? '#d97706' : '#dc2626' }}>{job.score}% match</span>
+                      {job.reason ? <span style={{ fontSize: 12, color: '#64748b' }}>{job.reason}</span> : null}
+                    </div>
+                  )}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                     {[job.remoteType, job.location, job.salaryText].filter(Boolean).map((tag: any, k: number) => (
                       <span key={k} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 999, background: 'rgba(0,0,0,0.06)', color: '#334155' }}>{tag}</span>
@@ -1103,7 +1136,7 @@ export default function App() {
                 )
               })}
               {!jobsLoading && !jobsError && jobsList.length === 0 && (
-                <p style={{ color: 'var(--muted)' }}>No jobs loaded yet — hit Refresh.</p>
+                <p style={{ color: '#64748b' }}>No jobs loaded yet — hit Refresh.</p>
               )}
             </div>
 
