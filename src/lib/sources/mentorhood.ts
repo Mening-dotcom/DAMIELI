@@ -73,22 +73,26 @@ function salaryOf(baseSalary: unknown): NormalizedJob['salary'] {
 }
 
 // Pull every JSON-LD block out of the HTML and collect JobPosting entries.
+// Uses a regex exec loop + index loop (no iterator spread / for-of) so it
+// compiles regardless of the project's TypeScript target.
 function extractJobPostings(html: string): any[] {
-  const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+  const re = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g
   const jobs: any[] = []
-  for (const [, raw] of blocks) {
+  let match: RegExpExecArray | null
+  while ((match = re.exec(html)) !== null) {
     let data: any
     try {
-      data = JSON.parse(raw)
+      data = JSON.parse(match[1])
     } catch {
       continue // skip malformed blocks rather than crash the whole fetch
     }
-    const items = Array.isArray(data?.itemListElement)
+    const items: any[] = Array.isArray(data && data.itemListElement)
       ? data.itemListElement
       : Array.isArray(data)
         ? data
         : [data]
-    for (const it of items) {
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i]
       const job = it && typeof it === 'object' && 'item' in it ? it.item : it
       if (job && job['@type'] === 'JobPosting') jobs.push(job)
     }
