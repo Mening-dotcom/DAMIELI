@@ -643,7 +643,7 @@ export default function App() {
         </div>
       )}
       {isMobile && sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 20 }} />}
-      <nav style={{ width: isMobile ? 260 : 240, background: 'linear-gradient(180deg, rgba(4,93,113,0.98), rgba(7,80,101,0.98))', borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.12)', borderBottom: isMobile ? '1px solid rgba(255,255,255,0.08)' : 'none', display: 'flex', flexDirection: 'column', position: isMobile ? 'fixed' : 'fixed', top: 0, left: 0, bottom: 0, height: isMobile ? '100vh' : '100vh', zIndex: 25, padding: isMobile ? '16px 0 10px' : '22px 0', transform: isMobile ? (sidebarOpen ? 'translateX(0)' : 'translateX(-100%)') : 'translateX(0)', transition: 'transform 0.2s ease' }}>
+      <nav style={{ width: isMobile ? '85%' : 240, maxWidth: isMobile ? 300 : 240, background: 'linear-gradient(180deg, rgba(4,93,113,0.98), rgba(7,80,101,0.98))', borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.12)', display: isMobile ? (sidebarOpen ? 'flex' : 'none') : 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, bottom: 0, height: '100vh', zIndex: isMobile ? 40 : 25, padding: '22px 0', overflowY: 'auto' }}>
         <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ fontFamily: 'Syne', fontSize: 24, fontWeight: 900, color: 'var(--accent)', letterSpacing: -1 }}>DAMIELI</div>
           <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, maxWidth: 200 }}>Fast resume studio with easy CV creation and clean downloads.</div>
@@ -1073,7 +1073,7 @@ export default function App() {
                       : <><strong>{jobsList.length}</strong> roles that fit — from Mentorhood + Remotive</>}
                 </p>
               </div>
-              <button onClick={loadJobs} disabled={jobsLoading} style={primaryBtnStyle}>↻ Refresh</button>
+              <button onClick={() => loadJobs()} disabled={jobsLoading} style={primaryBtnStyle}>↻ Refresh</button>
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
