@@ -270,12 +270,15 @@ export default function App() {
   const [jobsList, setJobsList] = useState<any[]>([])
   const [jobsLoading, setJobsLoading] = useState(false)
   const [jobsError, setJobsError] = useState('')
+  const [jobsPage, setJobsPage] = useState(1)
+  const [expandedJob, setExpandedJob] = useState<number | null>(null)
+  const JOBS_PER_PAGE = 8
   async function loadJobs() {
-    setJobsLoading(true); setJobsError('')
+    setJobsLoading(true); setJobsError(''); setExpandedJob(null)
     try {
-      const res = await fetch('/api/search?locationType=remote&seniority=Junior')
+      const res = await fetch('/api/search?locationType=remote&seniority=Junior', { cache: 'no-store' })
       const data = await res.json()
-      if (data.success) setJobsList(data.jobs || [])
+      if (data.success) { setJobsList(data.jobs || []); setJobsPage(1) }
       else setJobsError(data.error || 'Failed to load jobs')
     } catch (e: any) {
       setJobsError(e?.message || 'Failed to load jobs')
@@ -1023,7 +1026,12 @@ export default function App() {
 
         {/* ── HISTORY ── */}
         {/* ── JOBS ── */}
-        {screen === 'jobs' && (
+        {screen === 'jobs' && (() => {
+          const pagerBtn = (active: boolean): React.CSSProperties => ({ minWidth: 34, padding: '7px 10px', borderRadius: 8, border: '1px solid ' + (active ? '#0b3d91' : '#cbd5e1'), background: active ? '#0b3d91' : '#fff', color: active ? '#fff' : '#0f172a', fontSize: 12, fontWeight: 600, cursor: 'pointer' })
+          const totalPages = Math.max(1, Math.ceil(jobsList.length / JOBS_PER_PAGE))
+          const page = Math.min(jobsPage, totalPages)
+          const pageJobs = jobsList.slice((page - 1) * JOBS_PER_PAGE, page * JOBS_PER_PAGE)
+          return (
           <div>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
               <div>
@@ -1033,38 +1041,55 @@ export default function App() {
                     ? 'Searching…'
                     : jobsError
                       ? <span style={{ color: '#ef4444' }}>Error: {jobsError}</span>
-                      : <><strong>{jobsList.length}</strong> remote junior roles that fit — from Mentorhood</>}
+                      : <><strong>{jobsList.length}</strong> roles that fit — from Mentorhood + Remotive</>}
                 </p>
               </div>
               <button onClick={loadJobs} disabled={jobsLoading} style={primaryBtnStyle}>↻ Refresh</button>
             </div>
-            <div style={{ display: 'grid', gap: 12 }}>
-              {jobsList.map((job: any, i: number) => (
-                <div key={i} style={{ border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 16, background: '#fff' }}>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {pageJobs.map((job: any, i: number) => {
+                const idx = (page - 1) * JOBS_PER_PAGE + i
+                const open = expandedJob === idx
+                return (
+                <div key={idx} style={{ border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: 14, background: '#fff' }}>
                   <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>{job.title}</div>
-                  <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 10 }}>{job.company}</div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
-                    {[job.remoteType, job.location, job.salary ? `${job.salary.currency} ${Number(job.salary.value).toLocaleString()}` : null]
-                      .filter(Boolean)
-                      .map((tag: any, k: number) => (
-                        <span key={k} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 999, background: 'rgba(0,0,0,0.06)', color: '#334155' }}>{tag}</span>
-                      ))}
+                  <div style={{ color: 'var(--muted)', fontSize: 13 }}>{job.company} · <span style={{ textTransform: 'capitalize' }}>{job.source}</span></div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    {[job.remoteType, job.location, job.salaryText].filter(Boolean).map((tag: any, k: number) => (
+                      <span key={k} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 999, background: 'rgba(0,0,0,0.06)', color: '#334155' }}>{tag}</span>
+                    ))}
                   </div>
-                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                    <button
-                      onClick={() => { setJobText(job.description || ''); setJobCompany(job.company || ''); setJobRole(job.title || ''); setJobUrl(job.url || ''); setScreen('generate') }}
-                      style={primaryBtnStyle}
-                    >Create tailored CV →</button>
-                    <a href={job.url} target="_blank" rel="noopener noreferrer" style={{ padding: '9px 14px', borderRadius: 10, background: '#f1f5f9', color: '#0f172a', border: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, textDecoration: 'none', display: 'inline-block' }}>Open &amp; Apply →</a>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
+                    <button onClick={() => { setJobText(job.description || ''); setJobCompany(job.company || ''); setJobRole(job.title || ''); setJobUrl(job.url || ''); setScreen('generate') }} style={primaryBtnStyle}>Create tailored CV →</button>
+                    <a href={job.url} target="_blank" rel="noopener noreferrer" style={{ padding: '9px 14px', borderRadius: 10, background: '#f1f5f9', color: '#0f172a', border: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>Open &amp; Apply →</a>
+                    <button onClick={() => setExpandedJob(open ? null : idx)} style={{ padding: '9px 14px', borderRadius: 10, background: 'transparent', color: '#0b3d91', border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{open ? 'Hide details' : 'Details'}</button>
                   </div>
+                  {open && (
+                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #eef2f7', fontSize: 13, color: '#334155', lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 280, overflow: 'auto' }}>
+                      {job.description ? String(job.description).slice(0, 4000) : 'No description provided.'}
+                    </div>
+                  )}
                 </div>
-              ))}
+                )
+              })}
               {!jobsLoading && !jobsError && jobsList.length === 0 && (
                 <p style={{ color: 'var(--muted)' }}>No jobs loaded yet — hit Refresh.</p>
               )}
             </div>
+
+            {jobsList.length > JOBS_PER_PAGE && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', marginTop: 18 }}>
+                <button onClick={() => { setJobsPage(Math.max(1, page - 1)); setExpandedJob(null) }} disabled={page === 1} style={pagerBtn(false)}>‹ Prev</button>
+                {Array.from({ length: totalPages }).map((_, n) => (
+                  <button key={n} onClick={() => { setJobsPage(n + 1); setExpandedJob(null) }} style={pagerBtn(page === n + 1)}>{n + 1}</button>
+                ))}
+                <button onClick={() => { setJobsPage(Math.min(totalPages, page + 1)); setExpandedJob(null) }} disabled={page === totalPages} style={pagerBtn(false)}>Next ›</button>
+              </div>
+            )}
           </div>
-        )}
+          )
+        })()}
 
         {screen === 'history' && (
           <div className="fade-in">

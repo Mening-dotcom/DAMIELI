@@ -1,26 +1,13 @@
-// Mentorhood job source.
+// Mentorhood job source (LATAM board, server-rendered Next.js).
 //
-// Mentorhood (a LATAM job board) is a server-rendered Next.js site that embeds
-// its listings as schema.org JobPosting data inside a
-// <script type="application/ld+json"> block. We fetch the page HTML and read
-// that structured JSON — no headless browser, no fragile HTML scraping.
-//
-// This same JSON-LD approach works on many other job boards, so this file is a
-// template for adding more sources later.
+// Two bits of data live in the page HTML:
+//  1. schema.org JobPosting JSON-LD  → clean structured fields (title, company,
+//     description, salary, location, remote type, date).
+//  2. the app's flight data          → each job object carries a "link" field
+//     with the REAL application URL (computrabajo / icims / inhire / ...).
+// We read both and join them so each job has its true apply link.
 
-export type RemoteType = 'remote' | 'hybrid' | 'onsite' | 'unknown'
-
-export type NormalizedJob = {
-  source: string
-  title: string
-  company: string
-  description: string
-  remoteType: RemoteType
-  location: string
-  salary: { currency: string; value: number } | null
-  postedAt: string | null
-  url: string // link back to the board (per-job apply URLs come later)
-}
+import type { NormalizedJob, RemoteType } from './types'
 
 export type MentorhoodFilters = {
   locationType?: 'remote' | 'hybrid' | 'onsite'
@@ -29,62 +16,55 @@ export type MentorhoodFilters = {
 
 const BASE = 'https://www.mentorhood.com/en/oportunidades'
 
-function buildUrl(filters: MentorhoodFilters): string {
-  const params = new URLSearchParams()
-  if (filters.locationType) params.set('locationType', filters.locationType)
-  if (filters.seniority) params.set('seniority', filters.seniority)
-  const qs = params.toString()
+function buildUrl(f: MentorhoodFilters): string {
+  const p = new URLSearchParams()
+  if (f.locationType) p.set('locationType', f.locationType)
+  if (f.seniority) p.set('seniority', f.seniority)
+  const qs = p.toString()
   return qs ? `${BASE}?${qs}` : BASE
 }
 
-function mapLocationType(jobLocationType?: string): RemoteType {
-  if (!jobLocationType) return 'unknown'
-  const v = String(jobLocationType).toUpperCase()
+function mapRemote(t?: string): RemoteType {
+  if (!t) return 'unknown'
+  const v = String(t).toUpperCase()
   if (v.includes('TELECOMMUTE')) return 'remote'
   if (v.includes('HYBRID')) return 'hybrid'
   return 'onsite'
 }
 
-function orgName(hiringOrganization: unknown): string {
-  if (hiringOrganization && typeof hiringOrganization === 'object') {
-    const name = (hiringOrganization as { name?: unknown }).name
-    if (typeof name === 'string') return name
-  }
-  return typeof hiringOrganization === 'string' ? hiringOrganization : 'Unknown'
+function orgName(h: unknown): string {
+  if (h && typeof h === 'object' && typeof (h as any).name === 'string') return (h as any).name
+  return typeof h === 'string' ? h : 'Unknown'
 }
 
-function locationText(jobLocation: unknown): string {
-  if (jobLocation && typeof jobLocation === 'object') {
-    const addr = (jobLocation as { address?: { addressCountry?: unknown } }).address
-    const country = addr?.addressCountry
-    if (typeof country === 'string') return country
+function locationText(j: unknown): string {
+  if (j && typeof j === 'object') {
+    const c = (j as any).address?.addressCountry
+    if (typeof c === 'string') return c
   }
   return ''
 }
 
-function salaryOf(baseSalary: unknown): NormalizedJob['salary'] {
-  if (baseSalary && typeof baseSalary === 'object') {
-    const b = baseSalary as { currency?: unknown; value?: { value?: unknown } }
-    const currency = typeof b.currency === 'string' ? b.currency : 'USD'
-    const value = b.value?.value
-    if (typeof value === 'number') return { currency, value }
+function salaryText(b: unknown): string | null {
+  if (b && typeof b === 'object') {
+    const cur = typeof (b as any).currency === 'string' ? (b as any).currency : 'USD'
+    const val = (b as any).value?.value
+    if (typeof val === 'number') return `${cur} ${val.toLocaleString()}`
   }
   return null
 }
 
-// Pull every JSON-LD block out of the HTML and collect JobPosting entries.
-// Uses a regex exec loop + index loop (no iterator spread / for-of) so it
-// compiles regardless of the project's TypeScript target.
-function extractJobPostings(html: string): any[] {
+// --- structured fields from JSON-LD ---
+function extractJsonLdJobs(html: string): any[] {
   const re = /<script type="application\/ld\+json">([\s\S]*?)<\/script>/g
   const jobs: any[] = []
-  let match: RegExpExecArray | null
-  while ((match = re.exec(html)) !== null) {
+  let m: RegExpExecArray | null
+  while ((m = re.exec(html)) !== null) {
     let data: any
     try {
-      data = JSON.parse(match[1])
+      data = JSON.parse(m[1])
     } catch {
-      continue // skip malformed blocks rather than crash the whole fetch
+      continue
     }
     const items: any[] = Array.isArray(data && data.itemListElement)
       ? data.itemListElement
@@ -100,27 +80,79 @@ function extractJobPostings(html: string): any[] {
   return jobs
 }
 
+// --- apply links from the flight data (each job object has a "link" field) ---
+function enclosingObject(s: string, idx: number): string | null {
+  let depth = 0
+  let start = -1
+  for (let i = idx; i >= 0; i--) {
+    const c = s[i]
+    if (c === '}') depth++
+    else if (c === '{') {
+      if (depth === 0) { start = i; break }
+      depth--
+    }
+  }
+  if (start < 0) return null
+  depth = 0
+  for (let j = start; j < s.length; j++) {
+    const c = s[j]
+    if (c === '{') depth++
+    else if (c === '}') { depth--; if (depth === 0) return s.slice(start, j + 1) }
+  }
+  return null
+}
+
+function extractApplyLinks(html: string): { byTitle: Map<string, string>; inOrder: string[] } {
+  const flat = html.replace(/\\"/g, '"') // flight data escapes quotes as \"
+  const byTitle = new Map<string, string>()
+  const inOrder: string[] = []
+  const re = /"link":"(https?:\/\/[^"]+)"/g
+  const seen = new Set<string>()
+  let m: RegExpExecArray | null
+  while ((m = re.exec(flat)) !== null) {
+    const link = m[1]
+    if (seen.has(link)) continue
+    seen.add(link)
+    inOrder.push(link)
+    const obj = enclosingObject(flat, m.index)
+    if (!obj) continue
+    try {
+      const d = JSON.parse(obj)
+      if (d && typeof d.title === 'string') byTitle.set(d.title.trim(), link)
+    } catch {
+      /* ignore unparseable object */
+    }
+  }
+  return { byTitle, inOrder }
+}
+
 export async function fetchMentorhoodJobs(
   filters: MentorhoodFilters = { locationType: 'remote', seniority: 'Junior' },
 ): Promise<NormalizedJob[]> {
   const url = buildUrl(filters)
   const res = await fetch(url, {
     headers: { 'User-Agent': 'DAMIELI personal job-search tool' },
-    // Cache for an hour so we're polite to the board and fast to the user.
-    next: { revalidate: 3600 },
+    cache: 'no-store', // always fresh so "Refresh" actually refreshes
   })
   if (!res.ok) throw new Error(`Mentorhood fetch failed: ${res.status}`)
   const html = await res.text()
 
-  return extractJobPostings(html).map((j) => ({
-    source: 'mentorhood',
-    title: typeof j.title === 'string' ? j.title : 'Untitled role',
-    company: orgName(j.hiringOrganization),
-    description: typeof j.description === 'string' ? j.description : '',
-    remoteType: mapLocationType(j.jobLocationType),
-    location: locationText(j.jobLocation),
-    salary: salaryOf(j.baseSalary),
-    postedAt: typeof j.datePosted === 'string' ? j.datePosted : null,
-    url,
-  }))
+  const ld = extractJsonLdJobs(html)
+  const { byTitle, inOrder } = extractApplyLinks(html)
+
+  return ld.map((j, i) => {
+    const title = typeof j.title === 'string' ? j.title : 'Untitled role'
+    const applyUrl = byTitle.get(title.trim()) || inOrder[i] || url
+    return {
+      source: 'mentorhood',
+      title,
+      company: orgName(j.hiringOrganization),
+      description: typeof j.description === 'string' ? j.description : '',
+      remoteType: mapRemote(j.jobLocationType),
+      location: locationText(j.jobLocation),
+      salaryText: salaryText(j.baseSalary),
+      postedAt: typeof j.datePosted === 'string' ? j.datePosted : null,
+      url: applyUrl,
+    }
+  })
 }
