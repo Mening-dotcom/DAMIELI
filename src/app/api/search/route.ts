@@ -12,7 +12,8 @@ export const dynamic = 'force-dynamic' // never cache the route itself
 // fails is skipped (its error is reported), the rest still return.
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams
-  const locationType = (sp.get('locationType') as MentorhoodFilters['locationType']) || 'remote'
+  const ltRaw = sp.get('locationType')
+  const locationType = (ltRaw && ltRaw !== 'any' ? ltRaw : undefined) as MentorhoodFilters['locationType']
   const seniority = (sp.get('seniority') as MentorhoodFilters['seniority']) || 'Junior'
 
   const results = await Promise.allSettled([

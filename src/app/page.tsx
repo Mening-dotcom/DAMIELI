@@ -255,7 +255,7 @@ async function downloadWord(profile: UserProfile, cvData: CVData, role: string) 
 // ─── Main App ──────────────────────────────────────────────────────
 export default function App() {
   const [state, setState] = useState<AppState>({ profile: defaultProfile, history: [], stats: { cvsGenerated: 0, jobsAnalyzed: 0, totalTimeSaved: 0 }, templateId: 'modern', outputLanguage: 'English' })
-  const [screen, setScreen] = useState<'home' | 'jobs' | 'profile' | 'generate' | 'history'>('home')
+  const [screen, setScreen] = useState<'home' | 'jobs' | 'settings' | 'profile' | 'generate' | 'history'>('home')
   const [modal, setModal] = useState<string | null>(null)
   const [editIdx, setEditIdx] = useState<number | null>(null)
   const [generating, setGenerating] = useState(false)
@@ -273,13 +273,42 @@ export default function App() {
   const [jobsPage, setJobsPage] = useState(1)
   const [expandedJob, setExpandedJob] = useState<number | null>(null)
   const JOBS_PER_PAGE = 8
-  async function loadJobs() {
+  const [searchPrefs, setSearchPrefs] = useState({ modality: 'remote', seniority: 'Junior', minSalary: 0, zone: '', keywords: '' })
+  useEffect(() => {
+    try {
+      const r = typeof window !== 'undefined' ? window.localStorage.getItem('damieli_search_prefs') : null
+      if (r) setSearchPrefs(prev => ({ ...prev, ...JSON.parse(r) }))
+    } catch { /* ignore */ }
+  }, [])
+  function salaryToNumber(txt: any): number | null {
+    if (!txt) return null
+    const nums = String(txt).replace(/[,.]/g, '').match(/\d{3,}/g)
+    if (!nums || !nums.length) return null
+    return Math.max.apply(null, nums.map((n: string) => parseInt(n, 10)))
+  }
+  async function loadJobs(prefs = searchPrefs) {
     setJobsLoading(true); setJobsError(''); setExpandedJob(null)
     try {
-      const res = await fetch('/api/search?locationType=remote&seniority=Junior', { cache: 'no-store' })
+      const q = new URLSearchParams()
+      if (prefs.modality && prefs.modality !== 'any') q.set('locationType', prefs.modality)
+      if (prefs.seniority) q.set('seniority', prefs.seniority)
+      const res = await fetch('/api/search?' + q.toString(), { cache: 'no-store' })
       const data = await res.json()
-      if (data.success) { setJobsList(data.jobs || []); setJobsPage(1) }
-      else setJobsError(data.error || 'Failed to load jobs')
+      if (!data.success) { setJobsError(data.error || 'Failed to load jobs'); return }
+      let list: any[] = data.jobs || []
+      const zone = (prefs.zone || '').trim().toLowerCase()
+      const kws = (prefs.keywords || '').split(',').map((k: string) => k.trim().toLowerCase()).filter(Boolean)
+      const minSal = Number(prefs.minSalary) || 0
+      list = list.filter((j: any) => {
+        if (zone && !String(j.location || '').toLowerCase().includes(zone)) return false
+        if (kws.length) {
+          const hay = (String(j.title) + ' ' + String(j.company) + ' ' + String(j.description)).toLowerCase()
+          if (!kws.some((k: string) => hay.includes(k))) return false
+        }
+        if (minSal > 0) { const n = salaryToNumber(j.salaryText); if (n !== null && n < minSal) return false }
+        return true
+      })
+      setJobsList(list); setJobsPage(1)
     } catch (e: any) {
       setJobsError(e?.message || 'Failed to load jobs')
     } finally {
@@ -640,9 +669,9 @@ export default function App() {
           </div>
         </div>
         <div style={{ padding: '18px 14px', flex: 1 }}>
-          {(['home', 'jobs', 'profile', 'generate', 'history'] as const).map((s, i) => {
-            const labels = ['Dashboard', 'Jobs', 'Profile', 'Generate', 'History']
-            const icons = ['◈', '🔎', '◉', '⚡', '◎']
+          {(['home', 'jobs', 'settings', 'profile', 'generate', 'history'] as const).map((s, i) => {
+            const labels = ['Dashboard', 'Jobs', 'Settings', 'Profile', 'Generate', 'History']
+            const icons = ['◈', '🔎', '⚙', '◉', '⚡', '◎']
             return (
               <button key={s} onClick={() => { setScreen(s); if (s === 'jobs' && jobsList.length === 0) loadJobs(); if (isMobile) setSidebarOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 14, width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer', fontSize: 13, marginBottom: 8, background: screen === s ? 'rgba(124,58,237,0.14)' : 'transparent', color: screen === s ? '#fff' : 'var(--muted)', fontFamily: 'DM Sans', transition: 'all 0.15s' }}>
                 <span style={{ fontSize: 13 }}>{icons[i]}</span> {labels[i]}
@@ -1087,6 +1116,49 @@ export default function App() {
                 <button onClick={() => { setJobsPage(Math.min(totalPages, page + 1)); setExpandedJob(null) }} disabled={page === totalPages} style={pagerBtn(false)}>Next ›</button>
               </div>
             )}
+          </div>
+          )
+        })()}
+
+        {/* ── SETTINGS ── */}
+        {screen === 'settings' && (() => {
+          const lbl: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--muted)' }
+          const inp: React.CSSProperties = { padding: '10px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: 14, color: '#0f172a', background: '#fff' }
+          const save = () => {
+            try { window.localStorage.setItem('damieli_search_prefs', JSON.stringify(searchPrefs)) } catch { /* ignore */ }
+            setScreen('jobs'); loadJobs(searchPrefs)
+          }
+          return (
+          <div style={{ maxWidth: 560 }}>
+            <h1 style={{ fontFamily: 'Syne', fontSize: 26, fontWeight: 800, margin: '0 0 6px' }}>Search settings</h1>
+            <p style={{ color: 'var(--muted)', margin: '0 0 20px', fontSize: 14 }}>Tell DAMIELI what you want — these drive the Jobs search.</p>
+            <div style={{ display: 'grid', gap: 14 }}>
+              <label style={lbl}>Work style
+                <select value={searchPrefs.modality} onChange={e => setSearchPrefs({ ...searchPrefs, modality: e.target.value })} style={inp}>
+                  <option value="remote">Remote</option>
+                  <option value="hybrid">Hybrid</option>
+                  <option value="onsite">On-site</option>
+                  <option value="any">Any</option>
+                </select>
+              </label>
+              <label style={lbl}>Seniority
+                <select value={searchPrefs.seniority} onChange={e => setSearchPrefs({ ...searchPrefs, seniority: e.target.value })} style={inp}>
+                  <option>Junior</option><option>Mid</option><option>Senior</option><option>Lead</option>
+                </select>
+              </label>
+              <label style={lbl}>Minimum salary (USD / year — 0 = any)
+                <input type="number" value={searchPrefs.minSalary} onChange={e => setSearchPrefs({ ...searchPrefs, minSalary: Number(e.target.value) || 0 })} style={inp} />
+              </label>
+              <label style={lbl}>Zone / country (blank = anywhere)
+                <input type="text" placeholder="e.g. Costa Rica, LATAM, Brasil, Worldwide" value={searchPrefs.zone} onChange={e => setSearchPrefs({ ...searchPrefs, zone: e.target.value })} style={inp} />
+              </label>
+              <label style={lbl}>Keywords (comma-separated — matches title/company/description)
+                <input type="text" placeholder="e.g. developer, python, customer support" value={searchPrefs.keywords} onChange={e => setSearchPrefs({ ...searchPrefs, keywords: e.target.value })} style={inp} />
+              </label>
+              <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
+                <button onClick={save} style={primaryBtnStyle}>Save &amp; search →</button>
+              </div>
+            </div>
           </div>
           )
         })()}
