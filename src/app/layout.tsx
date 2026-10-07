@@ -1,9 +1,16 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
   title: 'Cvbuilder.ai — CV Launcher',
   description: 'Cvbuilder.ai makes your resume match the role with bold, human-ready AI tailoring.',
+}
+
+// Without this, phones/iPads render the page at ~980px desktop width, so the
+// mobile layout never kicks in (sidebar stays stuck, content overflows).
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -255,7 +255,7 @@ async function downloadWord(profile: UserProfile, cvData: CVData, role: string) 
 // ─── Main App ──────────────────────────────────────────────────────
 export default function App() {
   const [state, setState] = useState<AppState>({ profile: defaultProfile, history: [], stats: { cvsGenerated: 0, jobsAnalyzed: 0, totalTimeSaved: 0 }, templateId: 'modern', outputLanguage: 'English' })
-  const [screen, setScreen] = useState<'home' | 'profile' | 'generate' | 'history'>('home')
+  const [screen, setScreen] = useState<'home' | 'jobs' | 'profile' | 'generate' | 'history'>('home')
   const [modal, setModal] = useState<string | null>(null)
   const [editIdx, setEditIdx] = useState<number | null>(null)
   const [generating, setGenerating] = useState(false)
@@ -266,6 +266,23 @@ export default function App() {
   const [jobCompany, setJobCompany] = useState('')
   const [jobRole, setJobRole] = useState('')
   const [fetchingUrl, setFetchingUrl] = useState(false)
+  // --- Jobs tab state (job discovery) ---
+  const [jobsList, setJobsList] = useState<any[]>([])
+  const [jobsLoading, setJobsLoading] = useState(false)
+  const [jobsError, setJobsError] = useState('')
+  async function loadJobs() {
+    setJobsLoading(true); setJobsError('')
+    try {
+      const res = await fetch('/api/search?locationType=remote&seniority=Junior')
+      const data = await res.json()
+      if (data.success) setJobsList(data.jobs || [])
+      else setJobsError(data.error || 'Failed to load jobs')
+    } catch (e: any) {
+      setJobsError(e?.message || 'Failed to load jobs')
+    } finally {
+      setJobsLoading(false)
+    }
+  }
   const [skillInput, setSkillInput] = useState('')
   const [cvTab, setCvTab] = useState<'preview' | 'raw'>('preview')
   const [tailoringNotes, setTailoringNotes] = useState('')
@@ -620,11 +637,11 @@ export default function App() {
           </div>
         </div>
         <div style={{ padding: '18px 14px', flex: 1 }}>
-          {(['home', 'profile', 'generate', 'history'] as const).map((s, i) => {
-            const labels = ['Dashboard', 'Profile', 'Generate', 'History']
-            const icons = ['◈', '◉', '⚡', '◎']
+          {(['home', 'jobs', 'profile', 'generate', 'history'] as const).map((s, i) => {
+            const labels = ['Dashboard', 'Jobs', 'Profile', 'Generate', 'History']
+            const icons = ['◈', '🔎', '◉', '⚡', '◎']
             return (
-              <button key={s} onClick={() => { setScreen(s); if (isMobile) setSidebarOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 14, width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer', fontSize: 13, marginBottom: 8, background: screen === s ? 'rgba(124,58,237,0.14)' : 'transparent', color: screen === s ? '#fff' : 'var(--muted)', fontFamily: 'DM Sans', transition: 'all 0.15s' }}>
+              <button key={s} onClick={() => { setScreen(s); if (s === 'jobs' && jobsList.length === 0) loadJobs(); if (isMobile) setSidebarOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 14, width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer', fontSize: 13, marginBottom: 8, background: screen === s ? 'rgba(124,58,237,0.14)' : 'transparent', color: screen === s ? '#fff' : 'var(--muted)', fontFamily: 'DM Sans', transition: 'all 0.15s' }}>
                 <span style={{ fontSize: 13 }}>{icons[i]}</span> {labels[i]}
               </button>
             )
@@ -1005,6 +1022,50 @@ export default function App() {
         )}
 
         {/* ── HISTORY ── */}
+        {/* ── JOBS ── */}
+        {screen === 'jobs' && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+              <div>
+                <h1 style={{ fontFamily: 'Syne', fontSize: 26, fontWeight: 800, margin: 0 }}>Jobs for you</h1>
+                <p style={{ color: 'var(--muted)', margin: '6px 0 0', fontSize: 14 }}>
+                  {jobsLoading
+                    ? 'Searching…'
+                    : jobsError
+                      ? <span style={{ color: '#ef4444' }}>Error: {jobsError}</span>
+                      : <><strong>{jobsList.length}</strong> remote junior roles that fit — from Mentorhood</>}
+                </p>
+              </div>
+              <button onClick={loadJobs} disabled={jobsLoading} style={primaryBtnStyle}>↻ Refresh</button>
+            </div>
+            <div style={{ display: 'grid', gap: 12 }}>
+              {jobsList.map((job: any, i: number) => (
+                <div key={i} style={{ border: '1px solid rgba(0,0,0,0.08)', borderRadius: 14, padding: 16, background: '#fff' }}>
+                  <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>{job.title}</div>
+                  <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 10 }}>{job.company}</div>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 12 }}>
+                    {[job.remoteType, job.location, job.salary ? `${job.salary.currency} ${Number(job.salary.value).toLocaleString()}` : null]
+                      .filter(Boolean)
+                      .map((tag: any, k: number) => (
+                        <span key={k} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 999, background: 'rgba(0,0,0,0.06)', color: '#334155' }}>{tag}</span>
+                      ))}
+                  </div>
+                  <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                    <button
+                      onClick={() => { setJobText(job.description || ''); setJobCompany(job.company || ''); setJobRole(job.title || ''); setJobUrl(job.url || ''); setScreen('generate') }}
+                      style={primaryBtnStyle}
+                    >Create tailored CV →</button>
+                    <a href={job.url} target="_blank" rel="noopener noreferrer" style={{ padding: '9px 14px', borderRadius: 10, background: '#f1f5f9', color: '#0f172a', border: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, textDecoration: 'none', display: 'inline-block' }}>Open &amp; Apply →</a>
+                  </div>
+                </div>
+              ))}
+              {!jobsLoading && !jobsError && jobsList.length === 0 && (
+                <p style={{ color: 'var(--muted)' }}>No jobs loaded yet — hit Refresh.</p>
+              )}
+            </div>
+          </div>
+        )}
+
         {screen === 'history' && (
           <div className="fade-in">
             <div style={{ marginBottom: 24 }}>
