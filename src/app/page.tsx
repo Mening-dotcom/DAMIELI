@@ -309,44 +309,45 @@ export default function App() {
         if (minSal > 0) { const n = salaryToNumber(j.salaryText); if (n !== null && n < minSal) return false }
         return true
       })
-      setJobsList(rankByMatch(list)); setJobsPage(1)
+      setJobsList(list); setJobsPage(1)
     } catch (e: any) {
       setJobsError(e?.message || 'Failed to load jobs')
     } finally {
       setJobsLoading(false)
     }
   }
-  // Local match scoring — no API. Compares each job's text against terms pulled
-  // from your profile + search keywords, title matches weighted higher.
-  function rankByMatch(list: any[]): any[] {
-    const STOP = new Set(['with', 'that', 'this', 'from', 'your', 'have', 'will', 'work', 'team', 'role', 'join', 'about', 'looking', 'experience', 'years', 'and', 'the', 'for', 'you', 'our', 'are', 'into', 'must', 'plus', 'strong', 'good', 'able', 'they', 'their', 'what', 'who'])
-    const profileText = buildProfileText(state.profile) || ''
-    const terms = Array.from(new Set((profileText + ' ' + (searchPrefs.keywords || '')).toLowerCase().match(/[a-z][a-z+#.]{2,}/g) || []))
-      .filter(t => t.length >= 3 && !STOP.has(t))
-      .slice(0, 60)
-    const scored = list.map((j: any) => {
-      const title = String(j.title || '').toLowerCase()
-      const text = (String(j.title || '') + ' ' + String(j.company || '') + ' ' + String(j.description || '')).toLowerCase()
-      let hits = 0, titleHits = 0
-      for (let k = 0; k < terms.length; k++) {
-        const t = terms[k]
-        if (text.indexOf(t) !== -1) { hits++; if (title.indexOf(t) !== -1) titleHits++ }
+  // Semantic match scoring — one on-demand Claude call that judges REAL fit
+  // (transferable skills), not keyword overlap. Runs only when you click.
+  async function scoreMatches() {
+    if (!jobsList.length || matching) return
+    setMatching(true); setJobsError('')
+    try {
+      const profileText = buildProfileText(state.profile)
+      if (!profileText || profileText.trim().length < 20) {
+        setJobsError('Add your experience in the Profile tab first — matching needs your background.')
+        return
       }
-      const base = terms.length ? hits / terms.length : 0
-      const score = Math.round(Math.min(100, base * 70 + (Math.min(titleHits, 3) / 3) * 30))
-      const reason = !terms.length
-        ? 'Add profile/keywords to rank'
-        : (titleHits > 0 ? `${hits} profile keywords (${titleHits} in title)` : `${hits} profile keyword matches`)
-      return { ...j, score, reason }
-    })
-    scored.sort((a: any, b: any) => (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score))
-    return scored
-  }
-  function scoreMatches() {
-    if (!jobsList.length) return
-    setMatching(true)
-    setJobsList(rankByMatch(jobsList)); setJobsPage(1); setExpandedJob(null)
-    setMatching(false)
+      const res = await fetch('/api/match', {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileText, jobs: jobsList.map((j: any) => ({ title: j.title, company: j.company, description: j.description })) }),
+      })
+      const data = await res.json()
+      if (data.success && Array.isArray(data.scores)) {
+        const byIdx = new Map<number, any>(data.scores.map((s: any) => [Number(s.i), s] as [number, any]))
+        const scored = jobsList.map((j: any, i: number) => {
+          const s = byIdx.get(i)
+          return { ...j, score: s && typeof s.score === 'number' ? s.score : null, reason: s && s.reason ? String(s.reason) : '' }
+        })
+        scored.sort((a: any, b: any) => (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score))
+        setJobsList(scored); setJobsPage(1); setExpandedJob(null)
+      } else {
+        setJobsError(data.error || 'Matching failed')
+      }
+    } catch (e: any) {
+      setJobsError(e?.message || 'Matching failed')
+    } finally {
+      setMatching(false)
+    }
   }
   const [skillInput, setSkillInput] = useState('')
   const [cvTab, setCvTab] = useState<'preview' | 'raw'>('preview')
@@ -1107,7 +1108,7 @@ export default function App() {
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={scoreMatches} disabled={matching || !jobsList.length} style={{ ...primaryBtnStyle, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', boxShadow: 'none' }}>{matching ? 'Ranking…' : '⭐ Rank by match'}</button>
+                <button onClick={scoreMatches} disabled={matching || !jobsList.length} style={{ ...primaryBtnStyle, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', boxShadow: 'none' }}>{matching ? 'Matching…' : '⭐ Smart match'}</button>
                 <button onClick={() => loadJobs()} disabled={jobsLoading} style={primaryBtnStyle}>↻ Refresh</button>
               </div>
             </div>
