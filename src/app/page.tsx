@@ -1064,8 +1064,8 @@ export default function App() {
           <div>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
               <div>
-                <h1 style={{ fontFamily: 'Syne', fontSize: 26, fontWeight: 800, margin: 0 }}>Jobs for you</h1>
-                <p style={{ color: 'var(--muted)', margin: '6px 0 0', fontSize: 14 }}>
+                <h1 style={{ fontFamily: 'Syne', fontSize: 26, fontWeight: 800, margin: 0, color: '#0b3d91' }}>Jobs for you</h1>
+                <p style={{ color: '#475569', margin: '6px 0 0', fontSize: 14 }}>
                   {jobsLoading
                     ? 'Searching…'
                     : jobsError
@@ -1122,7 +1122,7 @@ export default function App() {
 
         {/* ── SETTINGS ── */}
         {screen === 'settings' && (() => {
-          const lbl: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--muted)' }
+          const lbl: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6, fontSize: 13, fontWeight: 700, color: '#334155' }
           const inp: React.CSSProperties = { padding: '10px 12px', borderRadius: 10, border: '1px solid #cbd5e1', fontSize: 14, color: '#0f172a', background: '#fff' }
           const save = () => {
             try { window.localStorage.setItem('damieli_search_prefs', JSON.stringify(searchPrefs)) } catch { /* ignore */ }
@@ -1130,9 +1130,9 @@ export default function App() {
           }
           return (
           <div style={{ maxWidth: 560 }}>
-            <h1 style={{ fontFamily: 'Syne', fontSize: 26, fontWeight: 800, margin: '0 0 6px' }}>Search settings</h1>
-            <p style={{ color: 'var(--muted)', margin: '0 0 20px', fontSize: 14 }}>Tell DAMIELI what you want — these drive the Jobs search.</p>
-            <div style={{ display: 'grid', gap: 14 }}>
+            <h1 style={{ fontFamily: 'Syne', fontSize: 26, fontWeight: 800, margin: '0 0 6px', color: '#0f172a' }}>Search settings</h1>
+            <p style={{ color: '#475569', margin: '0 0 20px', fontSize: 14 }}>Tell DAMIELI what you want — these drive the Jobs search.</p>
+            <div style={{ display: 'grid', gap: 14, background: '#fff', border: '1px solid #e2e8f0', borderRadius: 16, padding: 20, boxShadow: '0 8px 24px rgba(0,0,0,0.06)' }}>
               <label style={lbl}>Work style
                 <select value={searchPrefs.modality} onChange={e => setSearchPrefs({ ...searchPrefs, modality: e.target.value })} style={inp}>
                   <option value="remote">Remote</option>
