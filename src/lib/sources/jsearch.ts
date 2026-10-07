@@ -1,0 +1,37 @@
+// JSearch (RapidAPI) — aggregates Google for Jobs (LinkedIn, Indeed, Glassdoor,
+// ZipRecruiter, …). Requires a free RapidAPI key in env RAPIDAPI_KEY. If the key
+// is absent this source simply returns nothing (it won't be called by the
+// aggregator unless the key exists).
+import type { NormalizedJob } from './types'
+import { stripHtml, salaryRange } from './util'
+
+export async function fetchJSearchJobs(opts: { query?: string; remote?: boolean } = {}): Promise<NormalizedJob[]> {
+  const key = process.env.RAPIDAPI_KEY
+  if (!key) return []
+  const query = encodeURIComponent((opts.query || 'developer') + (opts.remote ? ' remote' : ''))
+  const res = await fetch(`https://jsearch.p.rapidapi.com/search?query=${query}&page=1&num_pages=1`, {
+    headers: {
+      'X-RapidAPI-Key': key,
+      'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
+      'User-Agent': 'DAMIELI personal job-search tool',
+    },
+    cache: 'no-store',
+  })
+  if (!res.ok) throw new Error(`JSearch fetch failed: ${res.status}`)
+  const data = await res.json()
+  const rows: any[] = Array.isArray(data && data.data) ? data.data : []
+  return rows.map((j: any) => {
+    const loc = [j.job_city, j.job_state, j.job_country].filter(Boolean).join(', ')
+    return {
+      source: 'jsearch',
+      title: String(j.job_title || 'Untitled role'),
+      company: String(j.employer_name || 'Unknown'),
+      description: stripHtml(j.job_description),
+      remoteType: j.job_is_remote ? ('remote' as const) : ('onsite' as const),
+      location: j.job_is_remote ? 'Remote' : loc,
+      salaryText: salaryRange(j.job_min_salary, j.job_max_salary, j.job_salary_currency || 'USD'),
+      postedAt: j.job_posted_at_datetime_utc ? String(j.job_posted_at_datetime_utc) : null,
+      url: String(j.job_apply_link || 'https://www.google.com/search?q=jobs'),
+    }
+  })
+}

@@ -273,6 +273,7 @@ export default function App() {
   const [jobsPage, setJobsPage] = useState(1)
   const [expandedJob, setExpandedJob] = useState<number | null>(null)
   const [matching, setMatching] = useState(false)
+  const [jobsSources, setJobsSources] = useState(0)
   const JOBS_PER_PAGE = 8
   const [searchPrefs, setSearchPrefs] = useState({ modality: 'remote', seniority: 'Junior', minSalary: 0, zone: '', keywords: '' })
   useEffect(() => {
@@ -296,6 +297,7 @@ export default function App() {
       const res = await fetch('/api/search?' + q.toString(), { cache: 'no-store' })
       const data = await res.json()
       if (!data.success) { setJobsError(data.error || 'Failed to load jobs'); return }
+      setJobsSources(data.sources || 0)
       let list: any[] = data.jobs || []
       const zone = (prefs.zone || '').trim().toLowerCase()
       const kws = (prefs.keywords || '').split(',').map((k: string) => k.trim().toLowerCase()).filter(Boolean)
@@ -1104,7 +1106,7 @@ export default function App() {
                     ? 'Searching…'
                     : jobsError
                       ? <span style={{ color: '#ef4444' }}>Error: {jobsError}</span>
-                      : <><strong>{jobsList.length}</strong> roles that fit — from Mentorhood + Remotive</>}
+                      : <><strong>{jobsList.length}</strong> roles — from <strong>{jobsSources}</strong> job sites. Hit <strong>⭐ Smart match</strong> to rank by fit.</>}
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>

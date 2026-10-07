@@ -1,42 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { fetchMentorhoodJobs, type MentorhoodFilters } from '@/lib/sources/mentorhood'
-import { fetchRemotiveJobs } from '@/lib/sources/remotive'
-import type { NormalizedJob } from '@/lib/sources/types'
+import { aggregateJobs } from '@/lib/sources'
 
 export const runtime = 'nodejs'
-export const maxDuration = 45
-export const dynamic = 'force-dynamic' // never cache the route itself
+export const maxDuration = 60
+export const dynamic = 'force-dynamic' // never cache the route
 
 // GET /api/search?locationType=remote&seniority=Junior
-// Pulls from every source in parallel and merges the results. A source that
-// fails is skipped (its error is reported), the rest still return.
+// Pulls from every available source (8 free + any key-gated ones), merges,
+// dedupes, and filters. Resilient: a failing source is skipped, not fatal.
 export async function GET(req: NextRequest) {
   const sp = req.nextUrl.searchParams
   const ltRaw = sp.get('locationType')
-  const locationType = (ltRaw && ltRaw !== 'any' ? ltRaw : undefined) as MentorhoodFilters['locationType']
-  const seniority = (sp.get('seniority') as MentorhoodFilters['seniority']) || 'Junior'
+  const locationType = ltRaw && ltRaw !== 'any' ? ltRaw : undefined
+  const seniority = sp.get('seniority') || 'Junior'
 
-  const results = await Promise.allSettled([
-    fetchMentorhoodJobs({ locationType, seniority }),
-    fetchRemotiveJobs({ search: (seniority || 'junior').toLowerCase(), limit: 40 }),
-  ])
-
-  const jobs: NormalizedJob[] = []
-  const sourceErrors: string[] = []
-  const labels = ['mentorhood', 'remotive']
-  results.forEach((r, i) => {
-    if (r.status === 'fulfilled') jobs.push(...r.value)
-    else sourceErrors.push(`${labels[i]}: ${r.reason instanceof Error ? r.reason.message : 'failed'}`)
-  })
-
-  // Newest first when we have a date.
-  jobs.sort((a, b) => (b.postedAt || '').localeCompare(a.postedAt || ''))
-
-  return NextResponse.json({
-    success: true,
-    count: jobs.length,
-    filters: { locationType, seniority },
-    sourceErrors,
-    jobs,
-  })
+  try {
+    const { jobs, sourceErrors, sources } = await aggregateJobs({ locationType, seniority })
+    return NextResponse.json({
+      success: true,
+      count: jobs.length,
+      sources,
+      sourceErrors,
+      filters: { locationType: locationType || 'any', seniority },
+      jobs,
+    })
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error'
+    return NextResponse.json({ success: false, error: message }, { status: 500 })
+  }
 }
