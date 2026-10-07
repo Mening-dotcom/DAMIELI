@@ -634,7 +634,7 @@ export default function App() {
 
   // ─── RENDER ────────────────────────────────────────────────────
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: '100vh', maxWidth: '100%', overflowX: 'hidden' }}>
       {/* Sidebar */}
       {isMobile && (
         <div style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'rgba(255,255,255,0.96)', borderBottom: '1px solid rgba(15,23,42,0.08)', backdropFilter: 'blur(8px)' }}>
