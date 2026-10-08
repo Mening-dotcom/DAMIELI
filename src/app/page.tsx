@@ -287,14 +287,14 @@ export default function App() {
   }, [])
   // Saved / Applied tracking (per job, persisted locally)
   const [jobStatusMap, setJobStatusMap] = useState<Record<string, string>>({})
-  const [jobView, setJobView] = useState<'all' | 'saved' | 'applied'>('all')
+  const [jobView, setJobView] = useState<'all' | 'saved' | 'applied' | 'hidden'>('all')
   useEffect(() => {
     try {
       const r = typeof window !== 'undefined' ? window.localStorage.getItem('damieli_job_status') : null
       if (r) setJobStatusMap(JSON.parse(r))
     } catch { /* ignore */ }
   }, [])
-  function markJob(job: any, status: 'saved' | 'applied') {
+  function markJob(job: any, status: 'saved' | 'applied' | 'hidden') {
     const key = String(job.url || job.title || '')
     setJobStatusMap((prev) => {
       const next = { ...prev }
@@ -1184,11 +1184,15 @@ export default function App() {
           const pagerBtn = (active: boolean): React.CSSProperties => ({ minWidth: 34, padding: '7px 10px', borderRadius: 8, border: '1px solid ' + (active ? '#4f46e5' : '#cbd5e1'), background: active ? '#4f46e5' : '#fff', color: active ? '#fff' : '#0f172a', fontSize: 12, fontWeight: 600, cursor: 'pointer' })
           const statusBtn = (active: boolean): React.CSSProperties => ({ padding: '9px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid ' + (active ? '#4f46e5' : '#dfe4f3'), background: active ? '#eef2ff' : '#fff', color: active ? '#4f46e5' : '#64748b' })
           const statusOf = (j: any) => jobStatusMap[String(j.url || j.title || '')]
-          let viewed = jobView === 'all' ? jobsList : jobsList.filter((j: any) => statusOf(j) === jobView)
-          // Hide roles that explicitly require US work authorization (Steven can't
-          // use those from Costa Rica). Nicole can switch this off — she's a US citizen.
-          const hiddenUsOnly = searchPrefs.onlyApplyable ? jobsList.filter((j: any) => j.eligibility === 'us_only').length : 0
-          if (searchPrefs.onlyApplyable) viewed = viewed.filter((j: any) => j.eligibility !== 'us_only')
+          // "all" shows everything EXCEPT jobs you've hidden; the other tabs show
+          // exactly that status (saved / applied / hidden).
+          let viewed = jobView === 'all' ? jobsList.filter((j: any) => statusOf(j) !== 'hidden') : jobsList.filter((j: any) => statusOf(j) === jobView)
+          // In the main view, also drop roles that explicitly require US work
+          // authorization (you can't use those from Costa Rica). The toggle lets
+          // a US citizen (e.g. Nicole) switch this off.
+          const applyFilterOn = searchPrefs.onlyApplyable && jobView === 'all'
+          const hiddenUsOnly = applyFilterOn ? viewed.filter((j: any) => j.eligibility === 'us_only').length : 0
+          if (applyFilterOn) viewed = viewed.filter((j: any) => j.eligibility !== 'us_only')
           const totalPages = Math.max(1, Math.ceil(viewed.length / JOBS_PER_PAGE))
           const page = Math.min(jobsPage, totalPages)
           const pageJobs = viewed.slice((page - 1) * JOBS_PER_PAGE, page * JOBS_PER_PAGE)
@@ -1202,7 +1206,7 @@ export default function App() {
                     ? 'Searching…'
                     : jobsError
                       ? <span style={{ color: '#ef4444' }}>Error: {jobsError}</span>
-                      : <><strong>{jobsList.length}</strong> roles — from <strong>{jobsSources}</strong> job sites. Hit <strong>⭐ Smart match</strong> to rank by fit.</>}
+                      : <><strong>{viewed.length}</strong> {jobView === 'all' ? 'you can apply to' : jobView} — from <strong>{jobsSources}</strong> sites.{jobView === 'all' && hiddenUsOnly > 0 ? ` ${hiddenUsOnly} US-only tucked away.` : ''} Hit <strong>⭐ Smart match</strong> to rank by fit.</>}
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -1212,7 +1216,7 @@ export default function App() {
             </div>
 
             <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-              {(['all', 'saved', 'applied'] as const).map((v) => (
+              {(['all', 'saved', 'applied', 'hidden'] as const).map((v) => (
                 <button key={v} onClick={() => { setJobView(v); setJobsPage(1); setExpandedJob(null) }} style={{ padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize', border: '1px solid ' + (jobView === v ? '#4f46e5' : '#dfe4f3'), background: jobView === v ? '#4f46e5' : '#fff', color: jobView === v ? '#fff' : '#475569' }}>{v}</button>
               ))}
               <div style={{ width: 1, height: 20, background: '#dfe4f3', margin: '0 2px' }} />
@@ -1254,6 +1258,7 @@ export default function App() {
                     <button onClick={() => setExpandedJob(open ? null : idx)} style={{ padding: '9px 14px', borderRadius: 10, background: 'transparent', color: '#4f46e5', border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{open ? 'Hide details' : 'Details'}</button>
                     <button onClick={() => markJob(job, 'saved')} style={statusBtn(statusOf(job) === 'saved')}>{statusOf(job) === 'saved' ? '★ Saved' : '☆ Save'}</button>
                     <button onClick={() => markJob(job, 'applied')} style={statusBtn(statusOf(job) === 'applied')}>{statusOf(job) === 'applied' ? '✓ Applied' : 'Mark applied'}</button>
+                    <button onClick={() => markJob(job, 'hidden')} title="Can't apply to this one? Hide it so it stops showing up." style={{ ...statusBtn(statusOf(job) === 'hidden'), marginLeft: 'auto', color: statusOf(job) === 'hidden' ? '#4f46e5' : '#b91c1c', borderColor: statusOf(job) === 'hidden' ? '#4f46e5' : '#fecaca' }}>{statusOf(job) === 'hidden' ? '↩ Unhide' : "🚫 Can't apply"}</button>
                   </div>
                   {open && (
                     <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #eef2f7', fontSize: 13, color: '#334155', lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 280, overflow: 'auto' }}>
