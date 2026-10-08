@@ -16,7 +16,7 @@ import { inferEligibility } from './util'
 export type AggregateFilters = { locationType?: string; seniority?: string }
 
 const PER_SOURCE_TIMEOUT_MS = 7000
-const MAX_RESULTS = 150
+const MAX_RESULTS = 400
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -35,12 +35,12 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
 
   const tasks: { name: string; run: () => Promise<NormalizedJob[]> }[] = [
     { name: 'mentorhood', run: () => fetchMentorhoodJobs({ locationType: filters.locationType as any, seniority: seniority as any }) },
-    { name: 'getonbrd', run: () => fetchGetOnBoardJobs({ query: 'developer', perPage: 30 }) },
-    { name: 'remotive', run: () => fetchRemotiveJobs({ search: q, limit: 40 }) },
+    { name: 'getonbrd', run: () => fetchGetOnBoardJobs({ query: 'developer', perPage: 50 }) },
+    { name: 'remotive', run: () => fetchRemotiveJobs({ search: q, limit: 100 }) },
     { name: 'arbeitnow', run: () => fetchArbeitnowJobs() },
-    { name: 'jobicy', run: () => fetchJobicyJobs({ count: 40 }) },
-    { name: 'himalayas', run: () => fetchHimalayasJobs({ limit: 40 }) },
-    { name: 'themuse', run: () => fetchTheMuseJobs({ page: 1 }) },
+    { name: 'jobicy', run: () => fetchJobicyJobs({ count: 50 }) },
+    { name: 'himalayas', run: () => fetchHimalayasJobs({ limit: 100 }) },
+    { name: 'themuse', run: () => fetchTheMuseJobs({ pages: 4 }) },
   ]
   // Tier B — only when the user has configured the free keys in env.
   if (process.env.RAPIDAPI_KEY) tasks.push({ name: 'jsearch', run: () => fetchJSearchJobs({ query: q + ' developer', remote }) })
