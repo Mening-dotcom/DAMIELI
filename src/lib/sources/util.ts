@@ -1,4 +1,5 @@
 // Small shared helpers for job sources.
+import type { Eligibility } from './types'
 
 export function stripHtml(s: unknown): string {
   if (typeof s !== 'string') return ''
@@ -21,6 +22,22 @@ export function unixToIso(v: unknown): string | null {
   const ms = n > 1e12 ? n : n * 1000
   const d = new Date(ms)
   return isNaN(d.getTime()) ? null : d.toISOString()
+}
+
+const LATAM_HINTS = /latam|latin america|south america|central america|the americas|costa rica|m[eé]xico|mexico|brazil|brasil|colombia|argentina|chile|per[uú]|peru|ecuador|guatemala|uruguay|bolivia|paraguay|venezuela|dominican|honduras|nicaragua|el salvador/i
+const WORLDWIDE_HINTS = /worldwide|anywhere in the world|work from anywhere|globally|global remote|any country|any time ?zone|international/i
+const US_ONLY_HINTS = /\bu\.?s\.?\s*(only|based|residents?|citizens?)\b|united states only|only.{0,15}united states|must (be|reside|live).{0,25}(united states|u\.?s\.?a?\b)|authoriz(ed|ation).{0,25}(united states|u\.?s\.?a?\b)|usa[- ]only|us[- ]only|eligible to work in the (us|united states)/i
+
+// Best-effort guess at whether a LATAM-based applicant (e.g. Costa Rica) can apply.
+export function inferEligibility(location: string, description: string, source: string): Eligibility {
+  if (source === 'mentorhood' || source === 'getonbrd') return 'latam'
+  const loc = String(location || '').toLowerCase().trim()
+  const text = (loc + ' ' + String(description || '')).toLowerCase()
+  if (LATAM_HINTS.test(text)) return 'latam'
+  if (WORLDWIDE_HINTS.test(text)) return 'worldwide'
+  if (US_ONLY_HINTS.test(text)) return 'us_only'
+  if (/^(usa|u\.?s\.?a?|united states)$/.test(loc)) return 'us_only'
+  return 'unknown'
 }
 
 export function salaryRange(min: unknown, max: unknown, currency = 'USD'): string | null {

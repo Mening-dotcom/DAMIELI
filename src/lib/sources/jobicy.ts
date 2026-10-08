@@ -16,7 +16,7 @@ export async function fetchJobicyJobs(opts: { count?: number } = {}): Promise<No
     source: 'jobicy',
     title: String(j.jobTitle || 'Untitled role'),
     company: String(j.companyName || 'Unknown'),
-    description: stripHtml(j.jobExcerpt || j.jobDescription),
+    description: stripHtml(j.jobDescription || j.jobExcerpt),
     remoteType: 'remote' as const,
     location: String(j.jobGeo || 'Remote'),
     salaryText: salaryRange(j.salaryMin, j.salaryMax, j.salaryCurrency || 'USD'),

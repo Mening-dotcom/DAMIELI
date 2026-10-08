@@ -19,7 +19,7 @@ export async function fetchHimalayasJobs(opts: { limit?: number } = {}): Promise
       source: 'himalayas',
       title: String(j.title || 'Untitled role'),
       company: String(j.companyName || 'Unknown'),
-      description: stripHtml(j.excerpt || j.description),
+      description: stripHtml(j.description || j.excerpt),
       remoteType: 'remote' as const,
       location: locs.length ? locs.join(', ') : 'Worldwide',
       salaryText: salaryRange(j.minSalary, j.maxSalary, j.currency || 'USD'),

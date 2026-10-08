@@ -275,7 +275,7 @@ export default function App() {
   const [matching, setMatching] = useState(false)
   const [jobsSources, setJobsSources] = useState(0)
   const JOBS_PER_PAGE = 8
-  const [searchPrefs, setSearchPrefs] = useState({ modality: 'remote', seniority: 'Junior', minSalary: 0, zone: '', keywords: '' })
+  const [searchPrefs, setSearchPrefs] = useState({ modality: 'remote', seniority: 'Junior', minSalary: 0, zone: '', keywords: '', eligibleOnly: true })
   useEffect(() => {
     try {
       const r = typeof window !== 'undefined' ? window.localStorage.getItem('damieli_search_prefs') : null
@@ -311,6 +311,7 @@ export default function App() {
         if (minSal > 0) { const n = salaryToNumber(j.salaryText); if (n !== null && n < minSal) return false }
         return true
       })
+      if (prefs.eligibleOnly) list = list.filter((j: any) => j.eligibility !== 'us_only')
       setJobsList(list); setJobsPage(1)
     } catch (e: any) {
       setJobsError(e?.message || 'Failed to load jobs')
@@ -1130,6 +1131,9 @@ export default function App() {
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                    {job.eligibility && job.eligibility !== 'unknown' && (
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: job.eligibility === 'us_only' ? '#fee2e2' : '#dcfce7', color: job.eligibility === 'us_only' ? '#b91c1c' : '#15803d' }}>{job.eligibility === 'us_only' ? '⚠ US only' : job.eligibility === 'latam' ? '🌎 LATAM OK' : '🌍 Worldwide'}</span>
+                    )}
                     {[job.remoteType, job.location, job.salaryText].filter(Boolean).map((tag: any, k: number) => (
                       <span key={k} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 999, background: 'rgba(0,0,0,0.06)', color: '#334155' }}>{tag}</span>
                     ))}
@@ -1199,6 +1203,10 @@ export default function App() {
               </label>
               <label style={lbl}>Keywords (comma-separated — matches title/company/description)
                 <input type="text" placeholder="e.g. developer, python, customer support" value={searchPrefs.keywords} onChange={e => setSearchPrefs({ ...searchPrefs, keywords: e.target.value })} style={inp} />
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13, fontWeight: 700, color: '#334155' }}>
+                <input type="checkbox" checked={!!searchPrefs.eligibleOnly} onChange={e => setSearchPrefs({ ...searchPrefs, eligibleOnly: e.target.checked })} />
+                Only jobs I can likely apply to from LATAM (hide US-only)
               </label>
               <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                 <button onClick={save} style={primaryBtnStyle}>Save &amp; search →</button>

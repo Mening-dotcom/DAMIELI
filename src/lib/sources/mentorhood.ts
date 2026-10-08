@@ -8,6 +8,7 @@
 // We read both and join them so each job has its true apply link.
 
 import type { NormalizedJob, RemoteType } from './types'
+import { stripHtml } from './util'
 
 export type MentorhoodFilters = {
   locationType?: 'remote' | 'hybrid' | 'onsite'
@@ -147,7 +148,7 @@ export async function fetchMentorhoodJobs(
       source: 'mentorhood',
       title,
       company: orgName(j.hiringOrganization),
-      description: typeof j.description === 'string' ? j.description : '',
+      description: stripHtml(j.description),
       remoteType: mapRemote(j.jobLocationType),
       location: locationText(j.jobLocation),
       salaryText: salaryText(j.baseSalary),

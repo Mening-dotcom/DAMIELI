@@ -12,6 +12,7 @@ import { fetchGetOnBoardJobs } from './getonbrd'
 import { fetchTheMuseJobs } from './themuse'
 import { fetchJSearchJobs } from './jsearch' // key-gated
 import { fetchAdzunaJobs } from './adzuna' // key-gated
+import { inferEligibility } from './util'
 
 export type AggregateFilters = { locationType?: string; seniority?: string }
 
@@ -67,10 +68,13 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
     return true
   })
 
+  // Tag each job with eligibility (can a LATAM applicant apply?).
+  const tagged = deduped.map((j) => ({ ...j, eligibility: inferEligibility(j.location, j.description, j.source) }))
+
   // Soft seniority filter: when Junior, drop clearly-senior titles.
-  let jobs = deduped
+  let jobs = tagged
   if (seniority === 'Junior') {
-    jobs = deduped.filter((j) => !SENIOR.test(j.title) || JUNIOR.test(j.title))
+    jobs = tagged.filter((j) => !SENIOR.test(j.title) || JUNIOR.test(j.title))
   }
   // Modality filter: when the user picked Remote, keep remote/unknown only.
   if (remote) jobs = jobs.filter((j) => j.remoteType === 'remote' || j.remoteType === 'unknown')
