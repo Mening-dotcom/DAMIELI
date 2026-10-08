@@ -12,9 +12,9 @@
   --card: #ffffff;
   --border: #e5e9f5;
   --border2: rgba(255, 255, 255, 0.22);
-  /* light text — used on the dark gradient sidebar */
-  --text: #f1f3ff;
-  --muted: #c4ccf8;
+  /* dark text — used on the light content area (sidebar sets its own light text) */
+  --text: #0e1430;
+  --muted: #5b6782;
   /* dark text — used on the light content area */
   --ink: #0e1430;
   --ink-muted: #5b6782;

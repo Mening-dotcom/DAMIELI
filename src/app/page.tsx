@@ -682,7 +682,7 @@ export default function App() {
       <nav style={{ width: isMobile ? '85%' : 240, maxWidth: isMobile ? 300 : 240, background: 'linear-gradient(165deg, #1e3a8a 0%, #4f46e5 50%, #be185d 120%)', borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.12)', display: isMobile ? (sidebarOpen ? 'flex' : 'none') : 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, bottom: 0, height: '100vh', zIndex: isMobile ? 40 : 25, padding: '22px 0', overflowY: 'auto' }}>
         <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
           <div style={{ fontFamily: 'Syne', fontSize: 24, fontWeight: 900, color: '#ffffff', letterSpacing: -1 }}>DAMIELI</div>
-          <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4, maxWidth: 200 }}>Fast resume studio with easy CV creation and clean downloads.</div>
+          <div style={{ fontSize: 12, color: '#c4ccf8', marginTop: 4, maxWidth: 200 }}>Fast resume studio with easy CV creation and clean downloads.</div>
           {syncStatus ? <div style={{ marginTop: 10, fontSize: 11, color: '#bfdbfe', lineHeight: 1.4 }}>{syncStatus}</div> : null}
         </div>
         <div style={{ padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -709,13 +709,13 @@ export default function App() {
             const labels = ['Dashboard', 'Jobs', 'Settings', 'Profile', 'Generate', 'History']
             const icons = ['◈', '🔎', '⚙', '◉', '⚡', '◎']
             return (
-              <button key={s} onClick={() => { setScreen(s); if (s === 'jobs' && jobsList.length === 0) loadJobs(); if (isMobile) setSidebarOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 14, width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer', fontSize: 13, marginBottom: 8, background: screen === s ? 'rgba(255,255,255,0.18)' : 'transparent', color: screen === s ? '#fff' : 'var(--muted)', fontFamily: 'DM Sans', fontWeight: screen === s ? 700 : 500, transition: 'all 0.15s' }}>
+              <button key={s} onClick={() => { setScreen(s); if (s === 'jobs' && jobsList.length === 0) loadJobs(); if (isMobile) setSidebarOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 14, width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer', fontSize: 13, marginBottom: 8, background: screen === s ? 'rgba(255,255,255,0.18)' : 'transparent', color: screen === s ? '#fff' : '#c7d2fe', fontFamily: 'DM Sans', fontWeight: screen === s ? 700 : 500, transition: 'all 0.15s' }}>
                 <span style={{ fontSize: 13 }}>{icons[i]}</span> {labels[i]}
               </button>
             )
           })}
         </div>
-        <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: 11, color: 'var(--muted)', lineHeight: 1.6 }}>
+        <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: 11, color: '#c4ccf8', lineHeight: 1.6 }}>
           Created by Steven M<br />
           <span style={{ color: 'var(--success)' }}>●</span> {state.stats.cvsGenerated} CVs generated<br />
           <span style={{ color: 'var(--info)' }}>⏱</span> {state.stats.totalTimeSaved}m saved
@@ -1595,7 +1595,7 @@ function Modal({ title, children, onClose, onSave }: { title: string; children: 
 }
 
 // ─── Style constants ───────────────────────────────────────────────
-const inputStyle: React.CSSProperties = { width: '100%', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: 10, padding: '11px 14px', color: 'var(--text)', fontFamily: 'DM Sans', fontSize: 13, outline: 'none' }
+const inputStyle: React.CSSProperties = { width: '100%', background: '#ffffff', border: '1px solid #dfe4f3', borderRadius: 10, padding: '11px 14px', color: '#0e1430', fontFamily: 'DM Sans', fontSize: 13, outline: 'none' }
 const textareaStyle: React.CSSProperties = { ...inputStyle, resize: 'vertical', minHeight: 120 }
 const primaryBtnStyle: React.CSSProperties = { padding: '11px 18px', borderRadius: 12, background: 'linear-gradient(135deg, #4f46e5 0%, #ec4899 100%)', color: '#fff', border: 'none', cursor: 'pointer', fontFamily: 'DM Sans', fontSize: 13, fontWeight: 700, boxShadow: '0 10px 26px rgba(79,70,229,0.30)' }
 const ghostBtnStyle: React.CSSProperties = { padding: '9px 14px', borderRadius: 10, background: '#ffffff', color: '#4f46e5', border: '1px solid #dfe4f3', cursor: 'pointer', fontFamily: 'DM Sans', fontSize: 12, fontWeight: 600 }
