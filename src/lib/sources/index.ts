@@ -49,7 +49,7 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
   // Query-driven sources: one search per role term, so each field is covered.
   for (let t = 0; t < roleTerms.length; t++) {
     const term = roleTerms[t]
-    tasks.push({ name: `getonbrd:${term}`, run: () => fetchGetOnBoardJobs({ query: term, perPage: 50 }) })
+    tasks.push({ name: `getonbrd:${term}`, run: () => fetchGetOnBoardJobs({ query: term, perPage: 50, pages: 2 }) })
     tasks.push({ name: `remotive:${term}`, run: () => fetchRemotiveJobs({ search: term, limit: 100 }) })
   }
   // Key-gated aggregators (LinkedIn/Indeed via JSearch, etc.). JSearch has a
