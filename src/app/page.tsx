@@ -275,7 +275,7 @@ export default function App() {
   const [matching, setMatching] = useState(false)
   const [jobsSources, setJobsSources] = useState(0)
   const JOBS_PER_PAGE = 8
-  const [searchPrefs, setSearchPrefs] = useState({ modality: 'remote', seniority: 'Junior', minSalary: 0, zone: '', keywords: '' })
+  const [searchPrefs, setSearchPrefs] = useState({ modality: 'remote', seniority: 'Junior', minSalary: 0, zone: '', keywords: 'developer, IT support, QA tester, accounting' })
   useEffect(() => {
     try {
       const r = typeof window !== 'undefined' ? window.localStorage.getItem('damieli_search_prefs') : null
@@ -313,13 +313,18 @@ export default function App() {
       const q = new URLSearchParams()
       if (prefs.modality && prefs.modality !== 'any') q.set('locationType', prefs.modality)
       if (prefs.seniority) q.set('seniority', prefs.seniority)
+      // The role terms drive what each job site actually searches for.
+      if (prefs.keywords && prefs.keywords.trim()) q.set('roles', prefs.keywords.trim())
       const res = await fetch('/api/search?' + q.toString(), { cache: 'no-store' })
       const data = await res.json()
       if (!data.success) { setJobsError(data.error || 'Failed to load jobs'); return }
       setJobsSources(data.sources || 0)
       let list: any[] = data.jobs || []
       const zone = (prefs.zone || '').trim().toLowerCase()
-      const kws = (prefs.keywords || '').split(',').map((k: string) => k.trim().toLowerCase()).filter(Boolean)
+      // Tokenize role terms into individual words (len >= 3) so a job matches
+      // on any meaningful word — "QA tester" still catches "Quality Assurance
+      // Tester" via "tester" — instead of needing the exact phrase.
+      const kws = (prefs.keywords || '').split(/[,\s]+/).map((k: string) => k.trim().toLowerCase()).filter((k: string) => k.length >= 3)
       const minSal = Number(prefs.minSalary) || 0
       list = list.filter((j: any) => {
         if (zone && !String(j.location || '').toLowerCase().includes(zone)) return false
@@ -1233,9 +1238,10 @@ export default function App() {
               <label style={lbl}>Zone / country (blank = anywhere)
                 <input type="text" placeholder="e.g. Costa Rica, LATAM, Brasil, Worldwide" value={searchPrefs.zone} onChange={e => setSearchPrefs({ ...searchPrefs, zone: e.target.value })} style={inp} />
               </label>
-              <label style={lbl}>Keywords (comma-separated — matches title/company/description)
-                <input type="text" placeholder="e.g. developer, python, customer support" value={searchPrefs.keywords} onChange={e => setSearchPrefs({ ...searchPrefs, keywords: e.target.value })} style={inp} />
+              <label style={lbl}>Roles / job titles to search (comma-separated — this is what the sites search for)
+                <input type="text" placeholder="e.g. QA tester, developer, IT support, accounting, credit analyst" value={searchPrefs.keywords} onChange={e => setSearchPrefs({ ...searchPrefs, keywords: e.target.value })} style={inp} />
               </label>
+              <div style={{ fontSize: 12, color: '#64748b', marginTop: -4 }}>Add every role you'd apply to — each term is searched across all sites, then ranked by fit to your profile.</div>
               <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                 <button onClick={save} style={primaryBtnStyle}>Save &amp; search →</button>
               </div>

@@ -13,9 +13,10 @@ export async function GET(req: NextRequest) {
   const ltRaw = sp.get('locationType')
   const locationType = ltRaw && ltRaw !== 'any' ? ltRaw : undefined
   const seniority = sp.get('seniority') || 'Junior'
+  const roles = (sp.get('roles') || '').split(',').map((r) => r.trim()).filter(Boolean)
 
   try {
-    const { jobs, sourceErrors, sources } = await aggregateJobs({ locationType, seniority })
+    const { jobs, sourceErrors, sources } = await aggregateJobs({ locationType, seniority, roles })
     return NextResponse.json({
       success: true,
       count: jobs.length,
