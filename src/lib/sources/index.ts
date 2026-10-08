@@ -4,7 +4,6 @@
 import type { NormalizedJob } from './types'
 import { fetchMentorhoodJobs } from './mentorhood'
 import { fetchRemotiveJobs } from './remotive'
-import { fetchRemoteOkJobs } from './remoteok'
 import { fetchArbeitnowJobs } from './arbeitnow'
 import { fetchJobicyJobs } from './jobicy'
 import { fetchHimalayasJobs } from './himalayas'
@@ -38,7 +37,6 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
     { name: 'mentorhood', run: () => fetchMentorhoodJobs({ locationType: filters.locationType as any, seniority: seniority as any }) },
     { name: 'getonbrd', run: () => fetchGetOnBoardJobs({ query: 'developer', perPage: 30 }) },
     { name: 'remotive', run: () => fetchRemotiveJobs({ search: q, limit: 40 }) },
-    { name: 'remoteok', run: () => fetchRemoteOkJobs() },
     { name: 'arbeitnow', run: () => fetchArbeitnowJobs() },
     { name: 'jobicy', run: () => fetchJobicyJobs({ count: 40 }) },
     { name: 'himalayas', run: () => fetchHimalayasJobs({ limit: 40 }) },
