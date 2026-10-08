@@ -273,9 +273,12 @@ export default function App() {
   const [jobsPage, setJobsPage] = useState(1)
   const [expandedJob, setExpandedJob] = useState<number | null>(null)
   const [matching, setMatching] = useState(false)
+  const [rolesLoading, setRolesLoading] = useState(false)
   const [jobsSources, setJobsSources] = useState(0)
   const JOBS_PER_PAGE = 8
-  const [searchPrefs, setSearchPrefs] = useState({ modality: 'remote', seniority: 'Junior', minSalary: 0, zone: '', keywords: 'developer, IT support, QA tester, accounting' })
+  // Remote-friendly starter roles — replaced automatically from the user's
+  // profile the first time they open the Jobs tab (see auto-pick effect).
+  const [searchPrefs, setSearchPrefs] = useState({ modality: 'remote', seniority: 'Junior', minSalary: 0, zone: '', keywords: 'customer service, customer support, virtual assistant, data entry, QA tester, IT support' })
   useEffect(() => {
     try {
       const r = typeof window !== 'undefined' ? window.localStorage.getItem('damieli_search_prefs') : null
@@ -345,6 +348,38 @@ export default function App() {
       setJobsLoading(false)
     }
   }
+  // Ask the AI to pick remote-friendly role search terms from the user's own
+  // profile — so they never have to invent a job title. Returns a comma string
+  // (or null on failure). The endpoint always falls back to a sane default.
+  async function suggestRoles(): Promise<string | null> {
+    try {
+      const profileText = buildProfileText(state.profile)
+      const res = await fetch('/api/roles', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ profileText }),
+      })
+      const data = await res.json()
+      if (data && data.success && Array.isArray(data.roles) && data.roles.length) {
+        return data.roles.join(', ')
+      }
+    } catch { /* ignore — caller keeps current roles */ }
+    return null
+  }
+  // Manual "re-pick" button in Settings.
+  async function autoPickRoles() {
+    setRolesLoading(true)
+    try {
+      const roles = await suggestRoles()
+      if (roles) {
+        const next = { ...searchPrefs, keywords: roles }
+        setSearchPrefs(next)
+        try { window.localStorage.setItem('damieli_search_prefs', JSON.stringify(next)) } catch { /* ignore */ }
+      }
+    } finally {
+      setRolesLoading(false)
+    }
+  }
   // Semantic match scoring — one on-demand Claude call that judges REAL fit
   // (transferable skills), not keyword overlap. Runs only when you click.
   async function scoreMatches() {
@@ -412,6 +447,31 @@ export default function App() {
   useEffect(() => {
     currentUserRef.current = currentUser
   }, [currentUser])
+
+  // First time the Jobs tab opens, auto-pick role search terms from the user's
+  // profile (so they never invent a job title), then load jobs. Runs once per
+  // device; after that it respects whatever roles the user has set.
+  const rolesAutoRan = useRef(false)
+  useEffect(() => {
+    if (screen !== 'jobs' || rolesAutoRan.current) return
+    rolesAutoRan.current = true
+    let already = false
+    try { already = window.localStorage.getItem('damieli_roles_auto') === '1' } catch { /* ignore */ }
+    if (already) {
+      if (!jobsList.length && !jobsLoading) loadJobs()
+      return
+    }
+    void (async () => {
+      const roles = await suggestRoles()
+      const nextPrefs = roles ? { ...searchPrefs, keywords: roles } : searchPrefs
+      if (roles) {
+        setSearchPrefs(nextPrefs)
+        try { window.localStorage.setItem('damieli_search_prefs', JSON.stringify(nextPrefs)) } catch { /* ignore */ }
+      }
+      try { window.localStorage.setItem('damieli_roles_auto', '1') } catch { /* ignore */ }
+      loadJobs(nextPrefs)
+    })()
+  }, [screen])
 
   const hasMeaningfulProfile = (profile?: Partial<UserProfile>) => {
     if (!profile) return false
@@ -1241,7 +1301,10 @@ export default function App() {
               <label style={lbl}>Roles / job titles to search (comma-separated — this is what the sites search for)
                 <input type="text" placeholder="e.g. QA tester, developer, IT support, accounting, credit analyst" value={searchPrefs.keywords} onChange={e => setSearchPrefs({ ...searchPrefs, keywords: e.target.value })} style={inp} />
               </label>
-              <div style={{ fontSize: 12, color: '#64748b', marginTop: -4 }}>Add every role you'd apply to — each term is searched across all sites, then ranked by fit to your profile.</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: -4, flexWrap: 'wrap' }}>
+                <button type="button" onClick={autoPickRoles} disabled={rolesLoading} style={{ ...ghostBtnStyle, padding: '7px 12px', fontSize: 12 }}>{rolesLoading ? 'Picking…' : '✨ Auto-pick roles from my profile'}</button>
+                <span style={{ fontSize: 12, color: '#64748b' }}>Don't have a target title? Let DAMIELI choose remote-friendly roles from your profile.</span>
+              </div>
               <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
                 <button onClick={save} style={primaryBtnStyle}>Save &amp; search →</button>
               </div>
