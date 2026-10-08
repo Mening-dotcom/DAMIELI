@@ -30,7 +30,9 @@ export async function fetchJSearchJobs(opts: { query?: string; remote?: boolean;
     let body = ''
     try { body = (await res.text()).slice(0, 200) } catch { /* ignore */ }
     // Diagnostics only — host + path + key SHAPE (never the key itself).
-    const diag = `url=${url} keylen=${key.length} head=${key.slice(0, 4)} tail=${key.slice(-4)}`
+    const h = res.headers
+    const hdr = `server=${h.get('server') || '?'} rl-limit=${h.get('x-ratelimit-requests-limit') || 'none'} rl-remain=${h.get('x-ratelimit-requests-remaining') || 'none'} region=${h.get('x-rapidapi-region') || '?'}`
+    const diag = `head=${key.slice(0, 4)} tail=${key.slice(-4)} | ${hdr}`
     throw new Error(`JSearch fetch failed: ${res.status} [${diag}] ${body}`)
   }
   const data = await res.json()
