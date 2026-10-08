@@ -11,14 +11,14 @@ export async function fetchJSearchJobs(opts: { query?: string; remote?: boolean;
   const query = encodeURIComponent((opts.query || 'developer') + (opts.remote ? ' remote' : ''))
   // remote_jobs_only trims the pool to actual remote postings — the only kind
   // applyable from Costa Rica. num_pages=1 keeps us inside the free 200/mo quota.
-  const remoteParam = opts.remote ? '&remote_jobs_only=true' : ''
-  // When the user is Junior, bias toward reachable roles (little/no experience).
-  const reqParam = opts.seniority === 'Junior' ? '&job_requirements=under_3_years_experience%2Cno_experience' : ''
   // Which JSearch host to call. Defaults to the canonical letscrape one, but can
   // be overridden (RAPIDAPI_JSEARCH_HOST) if the user subscribed to a clone that
   // lives at a different host — the X-RapidAPI-Host header must match it exactly.
   const host = (process.env.RAPIDAPI_JSEARCH_HOST || 'jsearch.p.rapidapi.com').trim()
-  const res = await fetch(`https://${host}/search?query=${query}&page=1&num_pages=1${remoteParam}${reqParam}`, {
+  // Minimal param set that matches the working Playground call (query + paging).
+  // Remote intent is carried in the query text, not a plan-gated param.
+  const url = `https://${host}/search?query=${query}&page=1&num_pages=1`
+  const res = await fetch(url, {
     headers: {
       'X-RapidAPI-Key': key,
       'X-RapidAPI-Host': host,
@@ -30,7 +30,7 @@ export async function fetchJSearchJobs(opts: { query?: string; remote?: boolean;
     let body = ''
     try { body = (await res.text()).slice(0, 200) } catch { /* ignore */ }
     // Diagnostics only — host + path + key SHAPE (never the key itself).
-    const diag = `host=${host} keylen=${key.length} head=${key.slice(0, 4)} tail=${key.slice(-4)} hasSpace=${/\s/.test(key)}`
+    const diag = `url=${url} keylen=${key.length} head=${key.slice(0, 4)} tail=${key.slice(-4)}`
     throw new Error(`JSearch fetch failed: ${res.status} [${diag}] ${body}`)
   }
   const data = await res.json()
