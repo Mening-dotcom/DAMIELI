@@ -282,6 +282,25 @@ export default function App() {
       if (r) setSearchPrefs(prev => ({ ...prev, ...JSON.parse(r) }))
     } catch { /* ignore */ }
   }, [])
+  // Saved / Applied tracking (per job, persisted locally)
+  const [jobStatusMap, setJobStatusMap] = useState<Record<string, string>>({})
+  const [jobView, setJobView] = useState<'all' | 'saved' | 'applied'>('all')
+  useEffect(() => {
+    try {
+      const r = typeof window !== 'undefined' ? window.localStorage.getItem('damieli_job_status') : null
+      if (r) setJobStatusMap(JSON.parse(r))
+    } catch { /* ignore */ }
+  }, [])
+  function markJob(job: any, status: 'saved' | 'applied') {
+    const key = String(job.url || job.title || '')
+    setJobStatusMap((prev) => {
+      const next = { ...prev }
+      if (next[key] === status) delete next[key] // tap again to clear
+      else next[key] = status
+      try { window.localStorage.setItem('damieli_job_status', JSON.stringify(next)) } catch { /* ignore */ }
+      return next
+    })
+  }
   function salaryToNumber(txt: any): number | null {
     if (!txt) return null
     const nums = String(txt).replace(/[,.]/g, '').match(/\d{3,}/g)
@@ -1093,10 +1112,13 @@ export default function App() {
         {/* ── HISTORY ── */}
         {/* ── JOBS ── */}
         {screen === 'jobs' && (() => {
-          const pagerBtn = (active: boolean): React.CSSProperties => ({ minWidth: 34, padding: '7px 10px', borderRadius: 8, border: '1px solid ' + (active ? '#0b3d91' : '#cbd5e1'), background: active ? '#0b3d91' : '#fff', color: active ? '#fff' : '#0f172a', fontSize: 12, fontWeight: 600, cursor: 'pointer' })
-          const totalPages = Math.max(1, Math.ceil(jobsList.length / JOBS_PER_PAGE))
+          const pagerBtn = (active: boolean): React.CSSProperties => ({ minWidth: 34, padding: '7px 10px', borderRadius: 8, border: '1px solid ' + (active ? '#4f46e5' : '#cbd5e1'), background: active ? '#4f46e5' : '#fff', color: active ? '#fff' : '#0f172a', fontSize: 12, fontWeight: 600, cursor: 'pointer' })
+          const statusBtn = (active: boolean): React.CSSProperties => ({ padding: '9px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid ' + (active ? '#4f46e5' : '#dfe4f3'), background: active ? '#eef2ff' : '#fff', color: active ? '#4f46e5' : '#64748b' })
+          const statusOf = (j: any) => jobStatusMap[String(j.url || j.title || '')]
+          const viewed = jobView === 'all' ? jobsList : jobsList.filter((j: any) => statusOf(j) === jobView)
+          const totalPages = Math.max(1, Math.ceil(viewed.length / JOBS_PER_PAGE))
           const page = Math.min(jobsPage, totalPages)
-          const pageJobs = jobsList.slice((page - 1) * JOBS_PER_PAGE, page * JOBS_PER_PAGE)
+          const pageJobs = viewed.slice((page - 1) * JOBS_PER_PAGE, page * JOBS_PER_PAGE)
           return (
           <div>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
@@ -1114,6 +1136,12 @@ export default function App() {
                 <button onClick={scoreMatches} disabled={matching || !jobsList.length} style={{ ...primaryBtnStyle, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', boxShadow: 'none' }}>{matching ? 'Matching…' : '⭐ Smart match'}</button>
                 <button onClick={() => loadJobs()} disabled={jobsLoading} style={primaryBtnStyle}>↻ Refresh</button>
               </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+              {(['all', 'saved', 'applied'] as const).map((v) => (
+                <button key={v} onClick={() => { setJobView(v); setJobsPage(1); setExpandedJob(null) }} style={{ padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize', border: '1px solid ' + (jobView === v ? '#4f46e5' : '#dfe4f3'), background: jobView === v ? '#4f46e5' : '#fff', color: jobView === v ? '#fff' : '#475569' }}>{v}</button>
+              ))}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -1141,7 +1169,9 @@ export default function App() {
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
                     <button onClick={() => { setJobText(job.description || ''); setJobCompany(job.company || ''); setJobRole(job.title || ''); setJobUrl(job.url || ''); setScreen('generate') }} style={primaryBtnStyle}>Create tailored CV →</button>
                     <a href={job.url} target="_blank" rel="noopener noreferrer" style={{ padding: '9px 14px', borderRadius: 10, background: '#f1f5f9', color: '#0f172a', border: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>Open &amp; Apply →</a>
-                    <button onClick={() => setExpandedJob(open ? null : idx)} style={{ padding: '9px 14px', borderRadius: 10, background: 'transparent', color: '#0b3d91', border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{open ? 'Hide details' : 'Details'}</button>
+                    <button onClick={() => setExpandedJob(open ? null : idx)} style={{ padding: '9px 14px', borderRadius: 10, background: 'transparent', color: '#4f46e5', border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{open ? 'Hide details' : 'Details'}</button>
+                    <button onClick={() => markJob(job, 'saved')} style={statusBtn(statusOf(job) === 'saved')}>{statusOf(job) === 'saved' ? '★ Saved' : '☆ Save'}</button>
+                    <button onClick={() => markJob(job, 'applied')} style={statusBtn(statusOf(job) === 'applied')}>{statusOf(job) === 'applied' ? '✓ Applied' : 'Mark applied'}</button>
                   </div>
                   {open && (
                     <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #eef2f7', fontSize: 13, color: '#334155', lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 280, overflow: 'auto' }}>
@@ -1156,7 +1186,7 @@ export default function App() {
               )}
             </div>
 
-            {jobsList.length > JOBS_PER_PAGE && (
+            {viewed.length > JOBS_PER_PAGE && (
               <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', marginTop: 18 }}>
                 <button onClick={() => { setJobsPage(Math.max(1, page - 1)); setExpandedJob(null) }} disabled={page === 1} style={pagerBtn(false)}>‹ Prev</button>
                 {Array.from({ length: totalPages }).map((_, n) => (
