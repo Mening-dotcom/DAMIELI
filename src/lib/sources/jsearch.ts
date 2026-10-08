@@ -14,10 +14,14 @@ export async function fetchJSearchJobs(opts: { query?: string; remote?: boolean;
   const remoteParam = opts.remote ? '&remote_jobs_only=true' : ''
   // When the user is Junior, bias toward reachable roles (little/no experience).
   const reqParam = opts.seniority === 'Junior' ? '&job_requirements=under_3_years_experience%2Cno_experience' : ''
-  const res = await fetch(`https://jsearch.p.rapidapi.com/search?query=${query}&page=1&num_pages=1${remoteParam}${reqParam}`, {
+  // Which JSearch host to call. Defaults to the canonical letscrape one, but can
+  // be overridden (RAPIDAPI_JSEARCH_HOST) if the user subscribed to a clone that
+  // lives at a different host — the X-RapidAPI-Host header must match it exactly.
+  const host = (process.env.RAPIDAPI_JSEARCH_HOST || 'jsearch.p.rapidapi.com').trim()
+  const res = await fetch(`https://${host}/search?query=${query}&page=1&num_pages=1${remoteParam}${reqParam}`, {
     headers: {
       'X-RapidAPI-Key': key,
-      'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
+      'X-RapidAPI-Host': host,
       'User-Agent': 'DAMIELI personal job-search tool',
     },
     cache: 'no-store',
