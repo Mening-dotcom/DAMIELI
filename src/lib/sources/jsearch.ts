@@ -29,7 +29,9 @@ export async function fetchJSearchJobs(opts: { query?: string; remote?: boolean;
   if (!res.ok) {
     let body = ''
     try { body = (await res.text()).slice(0, 200) } catch { /* ignore */ }
-    throw new Error(`JSearch fetch failed: ${res.status} ${body}`)
+    // Diagnostics only — host + path + key SHAPE (never the key itself).
+    const diag = `host=${host} keylen=${key.length} hasMsh=${key.includes('msh')} hasSpace=${/\s/.test(key)}`
+    throw new Error(`JSearch fetch failed: ${res.status} [${diag}] ${body}`)
   }
   const data = await res.json()
   const rows: any[] = Array.isArray(data && data.data) ? data.data : []
