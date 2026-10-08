@@ -9,10 +9,15 @@ export async function fetchAdzunaJobs(opts: { what?: string; country?: string } 
   if (!id || !key) return []
   const country = (opts.country || 'us').toLowerCase()
   const what = encodeURIComponent(opts.what || 'developer')
-  const url = `https://api.adzuna.com/v1/api/jobs/${country}/search/1?app_id=${id}&app_key=${key}&what=${what}&results_per_page=30&content-type=application/json`
-  const res = await fetch(url, { headers: { 'User-Agent': 'DAMIELI personal job-search tool' }, cache: 'no-store' })
-  if (!res.ok) throw new Error(`Adzuna fetch failed: ${res.status}`)
-  const data = await res.json()
+  const url = `https://api.adzuna.com/v1/api/jobs/${country}/search/1?app_id=${id}&app_key=${key}&what=${what}&results_per_page=50&content-type=application/json`
+  let data: any
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': 'DAMIELI personal job-search tool' }, cache: 'no-store' })
+    if (!res.ok) return [] // skip silently on any error
+    data = await res.json()
+  } catch {
+    return []
+  }
   const rows: any[] = Array.isArray(data && data.results) ? data.results : []
   return rows.map((j: any) => ({
     source: 'adzuna',
