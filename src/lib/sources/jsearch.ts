@@ -5,14 +5,16 @@
 import type { NormalizedJob } from './types'
 import { stripHtml, salaryRange } from './util'
 
-export async function fetchJSearchJobs(opts: { query?: string; remote?: boolean } = {}): Promise<NormalizedJob[]> {
+export async function fetchJSearchJobs(opts: { query?: string; remote?: boolean; seniority?: string } = {}): Promise<NormalizedJob[]> {
   const key = process.env.RAPIDAPI_KEY
   if (!key) return []
   const query = encodeURIComponent((opts.query || 'developer') + (opts.remote ? ' remote' : ''))
   // remote_jobs_only trims the pool to actual remote postings — the only kind
   // applyable from Costa Rica. num_pages=1 keeps us inside the free 200/mo quota.
   const remoteParam = opts.remote ? '&remote_jobs_only=true' : ''
-  const res = await fetch(`https://jsearch.p.rapidapi.com/search?query=${query}&page=1&num_pages=1${remoteParam}`, {
+  // When the user is Junior, bias toward reachable roles (little/no experience).
+  const reqParam = opts.seniority === 'Junior' ? '&job_requirements=under_3_years_experience%2Cno_experience' : ''
+  const res = await fetch(`https://jsearch.p.rapidapi.com/search?query=${query}&page=1&num_pages=1${remoteParam}${reqParam}`, {
     headers: {
       'X-RapidAPI-Key': key,
       'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',

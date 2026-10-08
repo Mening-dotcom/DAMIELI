@@ -54,7 +54,7 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
   }
   // Key-gated aggregators (LinkedIn/Indeed via JSearch, etc.). JSearch has a
   // small free quota, so we send ONE combined query instead of one per term.
-  if (process.env.RAPIDAPI_KEY) tasks.push({ name: 'jsearch', run: () => fetchJSearchJobs({ query: roleTerms.slice(0, 3).join(' OR '), remote }) })
+  if (process.env.RAPIDAPI_KEY) tasks.push({ name: 'jsearch', run: () => fetchJSearchJobs({ query: roleTerms.slice(0, 3).join(' OR '), remote, seniority }) })
   if (process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY) tasks.push({ name: 'adzuna', run: () => fetchAdzunaJobs({ what: roleTerms[0] }) })
 
   const settled = await Promise.allSettled(tasks.map((t) => withTimeout(t.run(), PER_SOURCE_TIMEOUT_MS)))
