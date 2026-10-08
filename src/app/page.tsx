@@ -278,7 +278,7 @@ export default function App() {
   const JOBS_PER_PAGE = 8
   // Remote-friendly starter roles — replaced automatically from the user's
   // profile the first time they open the Jobs tab (see auto-pick effect).
-  const [searchPrefs, setSearchPrefs] = useState({ modality: 'remote', seniority: 'Junior', minSalary: 0, zone: '', keywords: 'customer service, customer support, virtual assistant, data entry, QA tester, IT support' })
+  const [searchPrefs, setSearchPrefs] = useState({ modality: 'remote', seniority: 'Junior', minSalary: 0, zone: '', keywords: 'customer service, customer support, virtual assistant, data entry, QA tester, IT support', onlyApplyable: true })
   useEffect(() => {
     try {
       const r = typeof window !== 'undefined' ? window.localStorage.getItem('damieli_search_prefs') : null
@@ -338,9 +338,11 @@ export default function App() {
         if (minSal > 0) { const n = salaryToNumber(j.salaryText); if (n !== null && n < minSal) return false }
         return true
       })
-      // No country hide-filter: the applicant resides in Costa Rica, so any
-      // REMOTE role is applyable regardless of where the company sits. The
-      // location badge stays as info only; the human decides per listing.
+      // Rank the clearly-applyable-from-Costa-Rica jobs to the top: LATAM and
+      // Worldwide first, unknown next, US-authorization-required last. Stable
+      // sort keeps newest-first order within each group.
+      const rank: Record<string, number> = { latam: 0, worldwide: 1, unknown: 2, us_only: 3 }
+      list.sort((a: any, b: any) => (rank[a.eligibility] ?? 2) - (rank[b.eligibility] ?? 2))
       setJobsList(list); setJobsPage(1)
     } catch (e: any) {
       setJobsError(e?.message || 'Failed to load jobs')
@@ -1182,7 +1184,11 @@ export default function App() {
           const pagerBtn = (active: boolean): React.CSSProperties => ({ minWidth: 34, padding: '7px 10px', borderRadius: 8, border: '1px solid ' + (active ? '#4f46e5' : '#cbd5e1'), background: active ? '#4f46e5' : '#fff', color: active ? '#fff' : '#0f172a', fontSize: 12, fontWeight: 600, cursor: 'pointer' })
           const statusBtn = (active: boolean): React.CSSProperties => ({ padding: '9px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid ' + (active ? '#4f46e5' : '#dfe4f3'), background: active ? '#eef2ff' : '#fff', color: active ? '#4f46e5' : '#64748b' })
           const statusOf = (j: any) => jobStatusMap[String(j.url || j.title || '')]
-          const viewed = jobView === 'all' ? jobsList : jobsList.filter((j: any) => statusOf(j) === jobView)
+          let viewed = jobView === 'all' ? jobsList : jobsList.filter((j: any) => statusOf(j) === jobView)
+          // Hide roles that explicitly require US work authorization (Steven can't
+          // use those from Costa Rica). Nicole can switch this off — she's a US citizen.
+          const hiddenUsOnly = searchPrefs.onlyApplyable ? jobsList.filter((j: any) => j.eligibility === 'us_only').length : 0
+          if (searchPrefs.onlyApplyable) viewed = viewed.filter((j: any) => j.eligibility !== 'us_only')
           const totalPages = Math.max(1, Math.ceil(viewed.length / JOBS_PER_PAGE))
           const page = Math.min(jobsPage, totalPages)
           const pageJobs = viewed.slice((page - 1) * JOBS_PER_PAGE, page * JOBS_PER_PAGE)
@@ -1205,10 +1211,19 @@ export default function App() {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
               {(['all', 'saved', 'applied'] as const).map((v) => (
                 <button key={v} onClick={() => { setJobView(v); setJobsPage(1); setExpandedJob(null) }} style={{ padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize', border: '1px solid ' + (jobView === v ? '#4f46e5' : '#dfe4f3'), background: jobView === v ? '#4f46e5' : '#fff', color: jobView === v ? '#fff' : '#475569' }}>{v}</button>
               ))}
+              <div style={{ width: 1, height: 20, background: '#dfe4f3', margin: '0 2px' }} />
+              <button
+                onClick={() => { const next = { ...searchPrefs, onlyApplyable: !searchPrefs.onlyApplyable }; setSearchPrefs(next); setJobsPage(1); try { window.localStorage.setItem('damieli_search_prefs', JSON.stringify(next)) } catch { /* ignore */ } }}
+                title="Hide jobs that require US work authorization. Turn off if you can legally work in the US."
+                style={{ padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid ' + (searchPrefs.onlyApplyable ? '#16a34a' : '#dfe4f3'), background: searchPrefs.onlyApplyable ? '#dcfce7' : '#fff', color: searchPrefs.onlyApplyable ? '#15803d' : '#475569' }}
+              >🌎 Apply from Costa Rica {searchPrefs.onlyApplyable ? 'ON' : 'OFF'}</button>
+              {searchPrefs.onlyApplyable && hiddenUsOnly > 0 && (
+                <span style={{ fontSize: 12, color: '#64748b' }}>{hiddenUsOnly} US-only hidden</span>
+              )}
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

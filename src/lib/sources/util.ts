@@ -25,8 +25,8 @@ export function unixToIso(v: unknown): string | null {
 }
 
 const LATAM_HINTS = /latam|latin america|south america|central america|the americas|costa rica|m[eé]xico|mexico|brazil|brasil|colombia|argentina|chile|per[uú]|peru|ecuador|guatemala|uruguay|bolivia|paraguay|venezuela|dominican|honduras|nicaragua|el salvador/i
-const WORLDWIDE_HINTS = /worldwide|anywhere in the world|work from anywhere|globally|global remote|any country|any time ?zone|international/i
-const US_ONLY_HINTS = /\bu\.?s\.?\s*(only|based|residents?|citizens?)\b|united states only|only.{0,15}united states|must (be|reside|live).{0,25}(united states|u\.?s\.?a?\b)|authoriz(ed|ation).{0,25}(united states|u\.?s\.?a?\b)|usa[- ]only|us[- ]only|eligible to work in the (us|united states)/i
+const WORLDWIDE_HINTS = /worldwide|anywhere in the world|work from anywhere|globally|global remote|any country|any time ?zone|international|no visa|hire (globally|anywhere)|open to all countries|location[- ]independent/i
+const US_ONLY_HINTS = /\bu\.?s\.?\s*(only|based|residents?|citizens?)\b|united states only|only.{0,15}united states|must (be|reside|live|located).{0,25}(united states|u\.?s\.?a?\b)|(based|located|reside) (in|within) the (united states|u\.?s\.?a?\b|us)|authoriz(ed|ation).{0,25}(united states|u\.?s\.?a?\b)|usa[- ]only|us[- ]only|eligible to work in the (us|united states)|no visa sponsorship|visa sponsorship (is )?not|green card/i
 
 // Best-effort guess at whether a LATAM-based applicant (e.g. Costa Rica) can apply.
 export function inferEligibility(location: string, description: string, source: string): Eligibility {

@@ -9,7 +9,10 @@ export async function fetchJSearchJobs(opts: { query?: string; remote?: boolean 
   const key = process.env.RAPIDAPI_KEY
   if (!key) return []
   const query = encodeURIComponent((opts.query || 'developer') + (opts.remote ? ' remote' : ''))
-  const res = await fetch(`https://jsearch.p.rapidapi.com/search?query=${query}&page=1&num_pages=1`, {
+  // remote_jobs_only trims the pool to actual remote postings — the only kind
+  // applyable from Costa Rica. num_pages=1 keeps us inside the free 200/mo quota.
+  const remoteParam = opts.remote ? '&remote_jobs_only=true' : ''
+  const res = await fetch(`https://jsearch.p.rapidapi.com/search?query=${query}&page=1&num_pages=1${remoteParam}`, {
     headers: {
       'X-RapidAPI-Key': key,
       'X-RapidAPI-Host': 'jsearch.p.rapidapi.com',
