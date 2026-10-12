@@ -304,6 +304,18 @@ export default function App() {
       return next
     })
   }
+  // Export the Saved jobs as a jobs.json for the local Apply Assistant.
+  function exportApplyList() {
+    const saved = jobsList.filter((j: any) => jobStatusMap[String(j.url || j.title || '')] === 'saved')
+    const list = (saved.length ? saved : jobsList).map((j: any) => ({ title: j.title, url: j.url }))
+    if (!list.length) return
+    const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'jobs.json'
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000)
+  }
   function salaryToNumber(txt: any): number | null {
     if (!txt) return null
     const nums = String(txt).replace(/[,.]/g, '').match(/\d{3,}/g)
@@ -395,16 +407,18 @@ export default function App() {
       }
       const res = await fetch('/api/match', {
         method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileText, jobs: jobsList.map((j: any) => ({ title: j.title, company: j.company, description: j.description })) }),
+        body: JSON.stringify({ profileText, jobs: jobsList.map((j: any) => ({ title: j.title, company: j.company, description: j.description, location: j.location })) }),
       })
       const data = await res.json()
       if (data.success && Array.isArray(data.scores)) {
         const byIdx = new Map<number, any>(data.scores.map((s: any) => [Number(s.i), s] as [number, any]))
         const scored = jobsList.map((j: any, i: number) => {
           const s = byIdx.get(i)
-          return { ...j, score: s && typeof s.score === 'number' ? s.score : null, reason: s && s.reason ? String(s.reason) : '' }
+          const elig = s && s.eligible ? String(s.eligible).toLowerCase() : undefined
+          return { ...j, score: s && typeof s.score === 'number' ? s.score : null, reason: s && s.reason ? String(s.reason) : '', aiEligible: elig, aiEligReason: s && s.eligReason ? String(s.eligReason) : '' }
         })
-        scored.sort((a: any, b: any) => (b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score))
+        const erank = (e: any) => (e === 'no' ? 1 : 0) // push "can't apply" to the bottom
+        scored.sort((a: any, b: any) => erank(a.aiEligible) - erank(b.aiEligible) || ((b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score)))
         setJobsList(scored); setJobsPage(1); setExpandedJob(null)
       } else {
         setJobsError(data.error || 'Matching failed')
@@ -1187,12 +1201,14 @@ export default function App() {
           // "all" shows everything EXCEPT jobs you've hidden; the other tabs show
           // exactly that status (saved / applied / hidden).
           let viewed = jobView === 'all' ? jobsList.filter((j: any) => statusOf(j) !== 'hidden') : jobsList.filter((j: any) => statusOf(j) === jobView)
-          // In the main view, also drop roles that explicitly require US work
-          // authorization (you can't use those from Costa Rica). The toggle lets
-          // a US citizen (e.g. Nicole) switch this off.
+          // In the main view, drop roles you can't apply to from Costa Rica.
+          // After Smart match we use the AI's real verdict (aiEligible === 'no');
+          // before that we fall back to the weak keyword guess. Toggle off for a
+          // US citizen (e.g. Nicole).
           const applyFilterOn = searchPrefs.onlyApplyable && jobView === 'all'
-          const hiddenUsOnly = applyFilterOn ? viewed.filter((j: any) => j.eligibility === 'us_only').length : 0
-          if (applyFilterOn) viewed = viewed.filter((j: any) => j.eligibility !== 'us_only')
+          const notApplyable = (j: any) => (j.aiEligible ? j.aiEligible === 'no' : j.eligibility === 'us_only')
+          const hiddenUsOnly = applyFilterOn ? viewed.filter(notApplyable).length : 0
+          if (applyFilterOn) viewed = viewed.filter((j: any) => !notApplyable(j))
           const totalPages = Math.max(1, Math.ceil(viewed.length / JOBS_PER_PAGE))
           const page = Math.min(jobsPage, totalPages)
           const pageJobs = viewed.slice((page - 1) * JOBS_PER_PAGE, page * JOBS_PER_PAGE)
@@ -1212,6 +1228,7 @@ export default function App() {
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 <button onClick={scoreMatches} disabled={matching || !jobsList.length} style={{ ...primaryBtnStyle, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', boxShadow: 'none' }}>{matching ? 'Matching…' : '⭐ Smart match'}</button>
                 <button onClick={() => loadJobs()} disabled={jobsLoading} style={primaryBtnStyle}>↻ Refresh</button>
+                <button onClick={exportApplyList} disabled={!jobsList.length} title="Download your Saved jobs as jobs.json for the Apply Assistant" style={{ ...primaryBtnStyle, background: '#fff', color: '#4f46e5', border: '1px solid #c7d2fe', boxShadow: 'none' }}>⤓ Export apply list</button>
               </div>
             </div>
 
@@ -1245,9 +1262,13 @@ export default function App() {
                     </div>
                   )}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                    {job.eligibility && job.eligibility !== 'unknown' && (
+                    {job.aiEligible ? (
+                      <span title={job.aiEligReason || ''} style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: job.aiEligible === 'yes' ? '#dcfce7' : job.aiEligible === 'no' ? '#fee2e2' : '#fef3c7', color: job.aiEligible === 'yes' ? '#15803d' : job.aiEligible === 'no' ? '#b91c1c' : '#92400e' }}>
+                        {job.aiEligible === 'yes' ? '✅ Apply from CR' : job.aiEligible === 'no' ? '⛔ Needs work auth' : '❓ Check eligibility'}{job.aiEligReason ? ` · ${job.aiEligReason}` : ''}
+                      </span>
+                    ) : job.eligibility && job.eligibility !== 'unknown' ? (
                       <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: job.eligibility === 'us_only' ? '#dbeafe' : '#dcfce7', color: job.eligibility === 'us_only' ? '#1d4ed8' : '#15803d' }}>{job.eligibility === 'us_only' ? '🇺🇸 US-based (remote OK)' : job.eligibility === 'latam' ? '🌎 LATAM OK' : '🌍 Worldwide'}</span>
-                    )}
+                    ) : null}
                     {[job.remoteType, job.location, job.salaryText].filter(Boolean).map((tag: any, k: number) => (
                       <span key={k} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 999, background: 'rgba(0,0,0,0.06)', color: '#334155' }}>{tag}</span>
                     ))}

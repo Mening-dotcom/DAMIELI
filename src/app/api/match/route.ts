@@ -22,17 +22,21 @@ export async function POST(req: NextRequest) {
     }
 
     const list = jobs.slice(0, 30).map((j: any, i: number) =>
-      `#${i}\nTitle: ${String(j.title || '').slice(0, 120)}\nCompany: ${String(j.company || '').slice(0, 80)}\nDescription: ${String(j.description || '').replace(/\s+/g, ' ').slice(0, 700)}`,
+      `#${i}\nTitle: ${String(j.title || '').slice(0, 120)}\nCompany: ${String(j.company || '').slice(0, 80)}\nLocation: ${String(j.location || 'n/a').slice(0, 80)}\nDescription: ${String(j.description || '').replace(/\s+/g, ' ').slice(0, 1300)}`,
     ).join('\n\n')
 
-    const prompt = `You are an experienced recruiter. Judge how well THIS candidate fits EACH job.
+    const prompt = `You are an experienced recruiter helping a candidate based in COSTA RICA (Latin America). For EACH job do two things.
 
-Judge REAL fit, the way a good recruiter would:
-- Reward TRANSFERABLE skills and adjacent experience, not exact keyword matches. Example: "customer support" experience is a strong fit for a "client success" or "customer experience" role even if those exact words aren't in the profile.
-- Consider seniority, domain, and whether the person could realistically do and get this job.
-- Do NOT penalize a candidate just because the resume lacks the job's exact wording.
+(1) FIT — how well the candidate fits:
+- Reward TRANSFERABLE skills and adjacent experience, not exact keyword matches.
+- Consider seniority and whether they could realistically do and get this job.
+Scoring: 80-100 strong, 60-79 good, 40-59 stretch, 0-39 weak.
 
-Scoring guide: 80-100 = strong fit, apply now. 60-79 = good fit / worth applying. 40-59 = possible stretch. 0-39 = weak fit.
+(2) ELIGIBILITY — can this Costa-Rica-based candidate, who has NO US or EU work authorization, realistically APPLY and be HIRED? Read the ACTUAL requirements:
+- "no" → the job requires US/EU/other-country work authorization, residency, citizenship, security clearance, onsite/hybrid in another country, or says "US only / must reside in X".
+- "yes" → remote and open worldwide / to LATAM / "anywhere" / no country-work-authorization requirement. A timezone-overlap requirement ALONE is still "yes".
+- "maybe" → genuinely unclear from the text.
+Be strict: if it needs work authorization in a country the candidate isn't in, it is "no".
 
 CANDIDATE PROFILE:
 ${profileText}
@@ -41,12 +45,12 @@ JOBS (each has an index #N):
 ${list}
 
 Return ONLY a JSON array, no markdown, no extra text:
-[{"i":0,"score":82,"reason":"Support + bilingual experience transfers directly"}]
-The reason must be at most 12 words and explain the fit (or the gap).`
+[{"i":0,"score":82,"reason":"Support + bilingual transfers directly","eligible":"yes","eligReason":"Remote worldwide, no visa needed"}]
+"reason" ≤ 12 words. "eligible" is exactly "yes", "no", or "maybe". "eligReason" ≤ 10 words.`
 
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',
-      max_tokens: 2048,
+      max_tokens: 3500,
       messages: [{ role: 'user', content: prompt }],
     })
 
