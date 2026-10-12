@@ -11,12 +11,11 @@ import { fetchGetOnBoardJobs } from './getonbrd'
 import { fetchTheMuseJobs } from './themuse'
 import { fetchJSearchJobs } from './jsearch' // key-gated
 import { fetchAdzunaJobs } from './adzuna' // key-gated
-import { fetchComputrabajoJobs } from './computrabajo'
 import { inferEligibility } from './util'
 
 // LATAM/local boards — their jobs are applyable for a Costa Rica resident even
 // when "onsite", so they bypass the remote-only modality filter.
-const LATAM_SOURCES = new Set(['computrabajo', 'getonbrd', 'mentorhood'])
+const LATAM_SOURCES = new Set(['getonbrd', 'mentorhood'])
 
 export type AggregateFilters = { locationType?: string; seniority?: string; roles?: string[] }
 
@@ -56,11 +55,6 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
     const term = roleTerms[t]
     tasks.push({ name: `getonbrd:${term}`, run: () => fetchGetOnBoardJobs({ query: term, perPage: 50, pages: 2 }) })
     tasks.push({ name: `remotive:${term}`, run: () => fetchRemotiveJobs({ search: term, limit: 100 }) })
-  }
-  // Costa Rica local board (Computrabajo) — large volume of applyable local jobs.
-  const ctQueries = Array.from(new Set([...roleTerms.slice(0, 3), 'desarrollador', 'analista', 'soporte']))
-  for (const term of ctQueries) {
-    tasks.push({ name: `computrabajo:${term}`, run: () => fetchComputrabajoJobs({ query: term, pages: 2 }) })
   }
   // Key-gated aggregators (LinkedIn/Indeed via JSearch, etc.). JSearch has a
   // small free quota, so we send ONE combined query instead of one per term.
