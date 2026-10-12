@@ -30,7 +30,7 @@ const US_ONLY_HINTS = /\bu\.?s\.?\s*(only|based|residents?|citizens?)\b|united s
 
 // Best-effort guess at whether a LATAM-based applicant (e.g. Costa Rica) can apply.
 export function inferEligibility(location: string, description: string, source: string): Eligibility {
-  if (source === 'mentorhood' || source === 'getonbrd') return 'latam'
+  if (source === 'mentorhood' || source === 'getonbrd' || source === 'computrabajo') return 'latam'
   const loc = String(location || '').toLowerCase().trim()
   const text = (loc + ' ' + String(description || '')).toLowerCase()
   if (LATAM_HINTS.test(text)) return 'latam'
