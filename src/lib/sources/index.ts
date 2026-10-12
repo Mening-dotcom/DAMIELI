@@ -19,7 +19,7 @@ const LATAM_SOURCES = new Set(['getonbrd', 'mentorhood'])
 
 export type AggregateFilters = { locationType?: string; seniority?: string; roles?: string[] }
 
-const PER_SOURCE_TIMEOUT_MS = 7000
+const PER_SOURCE_TIMEOUT_MS = 9000
 const MAX_RESULTS = 400
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
@@ -39,7 +39,7 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
   // across the query-driven sources so the pool matches their field — not a
   // hardcoded "developer". Capped to keep the fan-out reasonable.
   const roleTerms = (filters.roles && filters.roles.length ? filters.roles : ['developer'])
-    .map((r) => r.trim()).filter(Boolean).slice(0, 5)
+    .map((r) => r.trim()).filter(Boolean).slice(0, 10)
 
   type Task = { name: string; run: () => Promise<NormalizedJob[]> }
   // Broad feeds (no search term) — fetched once, narrowed later by role keywords.
@@ -53,7 +53,7 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
   // Query-driven sources: one search per role term, so each field is covered.
   for (let t = 0; t < roleTerms.length; t++) {
     const term = roleTerms[t]
-    tasks.push({ name: `getonbrd:${term}`, run: () => fetchGetOnBoardJobs({ query: term, perPage: 50, pages: 2 }) })
+    tasks.push({ name: `getonbrd:${term}`, run: () => fetchGetOnBoardJobs({ query: term, perPage: 50, pages: 3 }) })
     tasks.push({ name: `remotive:${term}`, run: () => fetchRemotiveJobs({ search: term, limit: 100 }) })
   }
   // Key-gated aggregators (LinkedIn/Indeed via JSearch, etc.). JSearch has a

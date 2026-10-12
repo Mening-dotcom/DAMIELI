@@ -11,7 +11,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 // Semantic fit scoring in ONE batched Claude call. Scores by TRANSFERABLE fit,
 // not keyword overlap — the whole point is that fit is deeper than exact words.
 export async function POST(req: NextRequest) {
-  const limit = rateLimit(req, { windowMs: 60_000, max: 8 })
+  const limit = rateLimit(req, { windowMs: 60_000, max: 15 }) // batched scoring sends several chunks per click
   if (!limit.allowed) {
     return NextResponse.json({ error: 'Rate limit exceeded. Try again later.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter || 60) } })
   }
@@ -29,6 +29,8 @@ export async function POST(req: NextRequest) {
 
 (1) FIT — how well the candidate fits:
 - Reward TRANSFERABLE skills and adjacent experience, not exact keyword matches.
+- CROSS-DOMAIN backgrounds count: healthcare/medical, finance/credit/collections, tech, and customer service experience each open their own job families — score against the RELEVANT domain.
+- MULTILINGUAL is a major asset: for interpreter, bilingual-support, localization, or language-facing roles, speaking the required languages IS the core qualification — score those high.
 - Consider seniority and whether they could realistically do and get this job.
 Scoring: 80-100 strong, 60-79 good, 40-59 stretch, 0-39 weak.
 

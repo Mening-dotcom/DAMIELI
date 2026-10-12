@@ -9,7 +9,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
 // A safe, remote-friendly fallback if the profile is thin or the AI call fails.
 // Broad transferable roles a LATAM-based applicant can realistically land.
-const FALLBACK = ['customer service', 'customer support', 'virtual assistant', 'data entry', 'QA tester', 'IT support']
+const FALLBACK = ['customer support', 'medical interpreter', 'medical biller', 'collections specialist', 'credit analyst', 'accounts receivable', 'bilingual support', 'IT support', 'QA tester', 'developer']
 
 // POST /api/roles  { profileText }
 // Returns 5-8 concise, remote-friendly job-title SEARCH TERMS tailored to the
@@ -27,17 +27,18 @@ export async function POST(req: NextRequest) {
 
     const prompt = `You are a remote-career coach for someone based in Costa Rica (LATAM) who applies to REMOTE jobs worldwide.
 
-From the candidate profile below, output 6-8 SHORT job-title search terms to feed into job boards. Rules:
-- Prefer REMOTE-FRIENDLY roles the person can realistically GET given their real experience and transferable skills.
-- Include a mix: roles that match their background directly AND adjacent/entry roles that open doors.
-- Keep each term 1-3 words, lowercase, the way a title appears on a job board (e.g. "customer support", "qa tester", "accounting assistant").
+From the candidate profile below, output 10-12 SHORT job-title search terms to feed into job boards. Rules:
+- COVER EVERY DOMAIN in their background separately — e.g. if they have healthcare/medical + finance/credit/collections + tech + customer service experience, produce terms for EACH domain, not just one.
+- LANGUAGES ARE GOLD: if they speak 2+ languages, include language-leverage roles ("medical interpreter", "interpreter", "bilingual support", "localization") — these are among the best-paid remote roles from LATAM.
+- Prefer REMOTE-FRIENDLY roles the person can realistically GET given their real experience and transferable skills (e.g. credit-bureau experience → "collections specialist", "credit analyst", "accounts receivable", "billing specialist"; medical background → "medical biller", "medical records", "patient coordinator").
+- Keep each term 1-3 words, lowercase, the way a title appears on a job board.
 - No seniority words like "senior". No company names. No duplicates.
 
 CANDIDATE PROFILE:
 ${String(profileText).slice(0, 4000)}
 
 Return ONLY a JSON array of strings, no markdown, no extra text:
-["customer support","qa tester","accounting assistant"]`
+["medical interpreter","collections specialist","customer support"]`
 
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',

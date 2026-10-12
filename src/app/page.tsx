@@ -405,11 +405,24 @@ export default function App() {
         setJobsError('Add your experience in the Profile tab first — matching needs your background.')
         return
       }
-      const res = await fetch('/api/match', {
-        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ profileText, jobs: jobsList.map((j: any) => ({ title: j.title, company: j.company, description: j.description, location: j.location })) }),
-      })
-      const data = await res.json()
+      // Score EVERY job, not just the first 30: the API handles 30 per call, so
+      // we batch the whole list into parallel chunks and merge the results.
+      const CHUNK = 30
+      const chunks: any[][] = []
+      for (let ci = 0; ci < jobsList.length && chunks.length < 10; ci += CHUNK) chunks.push(jobsList.slice(ci, ci + CHUNK))
+      const chunkResults = await Promise.all(chunks.map(async (chunk, ci) => {
+        try {
+          const res = await fetch('/api/match', {
+            method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ profileText, jobs: chunk.map((j: any) => ({ title: j.title, company: j.company, description: j.description, location: j.location })) }),
+          })
+          const d = await res.json()
+          if (d.success && Array.isArray(d.scores)) return d.scores.map((s: any) => ({ ...s, i: Number(s.i) + ci * CHUNK }))
+        } catch { /* skip failed chunk */ }
+        return []
+      }))
+      const allScores = chunkResults.reduce((acc: any[], r: any[]) => acc.concat(r), [])
+      const data = { success: allScores.length > 0, scores: allScores, error: allScores.length ? '' : 'Matching failed' }
       if (data.success && Array.isArray(data.scores)) {
         const byIdx = new Map<number, any>(data.scores.map((s: any) => [Number(s.i), s] as [number, any]))
         const scored = jobsList.map((j: any, i: number) => {
@@ -472,7 +485,9 @@ export default function App() {
     if (screen !== 'jobs' || rolesAutoRan.current) return
     rolesAutoRan.current = true
     let already = false
-    try { already = window.localStorage.getItem('damieli_roles_auto') === '1' } catch { /* ignore */ }
+    // v2: role auto-pick now mines ALL profile domains (medical/finance/collections/
+    // tech/languages) — bumping the key forces one fresh re-pick for everyone.
+    try { already = window.localStorage.getItem('damieli_roles_auto_v2') === '1' } catch { /* ignore */ }
     if (already) {
       if (!jobsList.length && !jobsLoading) loadJobs()
       return
@@ -484,7 +499,7 @@ export default function App() {
         setSearchPrefs(nextPrefs)
         try { window.localStorage.setItem('damieli_search_prefs', JSON.stringify(nextPrefs)) } catch { /* ignore */ }
       }
-      try { window.localStorage.setItem('damieli_roles_auto', '1') } catch { /* ignore */ }
+      try { window.localStorage.setItem('damieli_roles_auto_v2', '1') } catch { /* ignore */ }
       loadJobs(nextPrefs)
     })()
   }, [screen])
