@@ -27,6 +27,14 @@ function db(): SupabaseClient {
 
 const normEmail = (e: string) => String(e || '').trim().toLowerCase()
 
+// Cheapest possible query that still counts as database activity, so the
+// daily cron ping keeps the free-tier Supabase project from auto-pausing.
+export async function pingDb(): Promise<boolean> {
+  const { error } = await db().from('users').select('id', { count: 'exact', head: true }).limit(1)
+  if (error) { console.error('pingDb error', error); return false }
+  return true
+}
+
 export async function createUser(user: UserRecord) {
   const email = normEmail(user.email)
   const { data: existing, error: findErr } = await db().from('users').select('id').eq('email', email).limit(1)
