@@ -1,0 +1,19 @@
+# Pings /api/health daily so the free-tier Supabase project always sees
+# database activity and never auto-pauses. Redundant with the Vercel cron in
+# vercel.json on purpose — either one alone is enough to keep the DB awake.
+name: keep-alive
+
+on:
+  schedule:
+    - cron: "30 15 * * *" # daily at 15:30 UTC
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase via health endpoint
+        run: |
+          resp=$(curl -sS --fail --max-time 30 https://damieli.vercel.app/api/health)
+          echo "Response: $resp"
+          echo "$resp" | grep -q '"ok":true' || { echo "Health check reported not-ok"; exit 1; }
