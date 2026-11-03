@@ -5,3 +5,10 @@ node_modules
 *.log
 
 .vercel
+
+# local debug artifacts
+cookies*.txt
+payload*.json
+test_signup.json
+tmp_*.js
+*.log
