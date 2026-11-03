@@ -3,7 +3,7 @@
 // dedupes, filters (seniority / modality), and returns newest-first.
 import type { NormalizedJob } from './types'
 import { fetchMentorhoodJobs } from './mentorhood'
-import { fetchRemotiveJobs } from './remotive'
+import { fetchRemoteOkJobs } from './remoteok'
 import { fetchArbeitnowJobs } from './arbeitnow'
 import { fetchJobicyJobs } from './jobicy'
 import { fetchHimalayasJobs } from './himalayas'
@@ -47,14 +47,19 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
     { name: 'mentorhood', run: () => fetchMentorhoodJobs({ locationType: filters.locationType as any, seniority: seniority as any }) },
     { name: 'arbeitnow', run: () => fetchArbeitnowJobs() },
     { name: 'jobicy', run: () => fetchJobicyJobs({ count: 50 }) },
+    // Jobicy LATAM feed: jobs explicitly open to Latin-America applicants.
+    { name: 'jobicy:latam', run: () => fetchJobicyJobs({ count: 50, geo: 'latam' }) },
+    { name: 'remoteok', run: () => fetchRemoteOkJobs() },
     { name: 'himalayas', run: () => fetchHimalayasJobs({ limit: 100 }) },
     { name: 'themuse', run: () => fetchTheMuseJobs({ pages: 4 }) },
+    // Dedicated Costa-Rica sweep on the LATAM board, independent of role terms,
+    // so local-friendly roles are never missed just because of the role list.
+    { name: 'getonbrd:costa-rica', run: () => fetchGetOnBoardJobs({ query: 'costa rica', perPage: 50, pages: 2 }) },
   ]
   // Query-driven sources: one search per role term, so each field is covered.
   for (let t = 0; t < roleTerms.length; t++) {
     const term = roleTerms[t]
     tasks.push({ name: `getonbrd:${term}`, run: () => fetchGetOnBoardJobs({ query: term, perPage: 50, pages: 3 }) })
-    tasks.push({ name: `remotive:${term}`, run: () => fetchRemotiveJobs({ search: term, limit: 100 }) })
   }
   // Key-gated aggregators (LinkedIn/Indeed via JSearch, etc.). JSearch has a
   // small free quota, so we send ONE combined query instead of one per term.
@@ -100,8 +105,14 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
   // always keep LATAM/local boards (applyable from Costa Rica even if onsite).
   if (remote) jobs = jobs.filter((j) => j.remoteType === 'remote' || j.remoteType === 'unknown' || LATAM_SOURCES.has(j.source))
 
-  // Newest first (best-effort on mixed date formats).
-  jobs.sort((a, b) => String(b.postedAt || '').localeCompare(String(a.postedAt || '')))
+  // Applyable-from-Costa-Rica first, newest within each group — BEFORE the cap,
+  // so country-restricted jobs never crowd eligible ones out of the 400.
+  const rank: Record<string, number> = { latam: 0, worldwide: 1, unknown: 2, us_only: 3, restricted: 4 }
+  jobs.sort((a, b) => {
+    const r = (rank[a.eligibility || 'unknown'] ?? 2) - (rank[b.eligibility || 'unknown'] ?? 2)
+    if (r !== 0) return r
+    return String(b.postedAt || '').localeCompare(String(a.postedAt || ''))
+  })
 
   return { jobs: jobs.slice(0, MAX_RESULTS), sourceErrors, sources }
 }

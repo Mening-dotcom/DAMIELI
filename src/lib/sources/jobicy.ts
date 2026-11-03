@@ -3,9 +3,10 @@
 import type { NormalizedJob } from './types'
 import { stripHtml, salaryRange } from './util'
 
-export async function fetchJobicyJobs(opts: { count?: number } = {}): Promise<NormalizedJob[]> {
+export async function fetchJobicyJobs(opts: { count?: number; geo?: string } = {}): Promise<NormalizedJob[]> {
   const count = opts.count || 40
-  const res = await fetch(`https://jobicy.com/api/v2/remote-jobs?count=${count}`, {
+  const geo = opts.geo ? `&geo=${encodeURIComponent(opts.geo)}` : ''
+  const res = await fetch(`https://jobicy.com/api/v2/remote-jobs?count=${count}${geo}`, {
     headers: { 'User-Agent': 'DAMIELI personal job-search tool' },
     cache: 'no-store',
   })

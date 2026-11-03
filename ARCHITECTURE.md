@@ -43,7 +43,7 @@ APIs instead.
 
 | Stream | Sources |
 |---|---|
-| Remote (anywhere) — primary | Remotive (free, no key), RemoteOK (free), Arbeitnow (free), JSearch via RapidAPI (`remote` filter) |
+| Remote (anywhere) — primary | RemoteOK (free), Jobicy incl. LATAM feed (free), Arbeitnow (free), JSearch via RapidAPI (`remote` filter) |
 | Costa Rica hybrid/on-site — secondary | JSearch filtered to Costa Rica (indexes LinkedIn/Indeed) |
 
 Each job stores its raw location/eligibility text so matching can flag
@@ -104,13 +104,13 @@ ANTHROPIC_API_KEY            # exists — CV tailoring
 SUPABASE_URL                 # Postgres persistence
 SUPABASE_SERVICE_ROLE_KEY    # server-side writes
 RAPIDAPI_KEY                 # JSearch (optional at first)
-# Remotive / RemoteOK / Arbeitnow need no key
+# RemoteOK / Jobicy / Arbeitnow need no key
 ```
 
 ## Build order (phased)
 
 0. **DB migration** — move persistence to Supabase (prerequisite for reliable tracking).
-1. **Phase 1 — Discovery slice:** `/api/search` with ONE free source (Remotive, no key)
+1. **Phase 1 — Discovery slice:** `/api/search` with ONE free source (no key)
    → `jobs` table → basic `/jobs` list page. Proves the pipeline end to end.
 2. **Phase 2 — More sources + matching:** add RemoteOK, Arbeitnow, JSearch; eligibility
    flagging; Remote/CR toggle.

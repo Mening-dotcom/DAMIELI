@@ -353,7 +353,7 @@ export default function App() {
       // Rank the clearly-applyable-from-Costa-Rica jobs to the top: LATAM and
       // Worldwide first, unknown next, US-authorization-required last. Stable
       // sort keeps newest-first order within each group.
-      const rank: Record<string, number> = { latam: 0, worldwide: 1, unknown: 2, us_only: 3 }
+      const rank: Record<string, number> = { latam: 0, worldwide: 1, unknown: 2, us_only: 3, restricted: 4 }
       list.sort((a: any, b: any) => (rank[a.eligibility] ?? 2) - (rank[b.eligibility] ?? 2))
       setJobsList(list); setJobsPage(1)
     } catch (e: any) {
@@ -1221,7 +1221,7 @@ export default function App() {
           // before that we fall back to the weak keyword guess. Toggle off for a
           // US citizen (e.g. Nicole).
           const applyFilterOn = searchPrefs.onlyApplyable && jobView === 'all'
-          const notApplyable = (j: any) => (j.aiEligible ? j.aiEligible === 'no' : j.eligibility === 'us_only')
+          const notApplyable = (j: any) => (j.aiEligible ? j.aiEligible === 'no' : j.eligibility === 'us_only' || j.eligibility === 'restricted')
           const hiddenUsOnly = applyFilterOn ? viewed.filter(notApplyable).length : 0
           if (applyFilterOn) viewed = viewed.filter((j: any) => !notApplyable(j))
           const totalPages = Math.max(1, Math.ceil(viewed.length / JOBS_PER_PAGE))
@@ -1282,7 +1282,7 @@ export default function App() {
                         {job.aiEligible === 'yes' ? '✅ Apply from CR' : job.aiEligible === 'no' ? '⛔ Needs work auth' : '❓ Check eligibility'}{job.aiEligReason ? ` · ${job.aiEligReason}` : ''}
                       </span>
                     ) : job.eligibility && job.eligibility !== 'unknown' ? (
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: job.eligibility === 'us_only' ? '#dbeafe' : '#dcfce7', color: job.eligibility === 'us_only' ? '#1d4ed8' : '#15803d' }}>{job.eligibility === 'us_only' ? '🇺🇸 US-based (remote OK)' : job.eligibility === 'latam' ? '🌎 LATAM OK' : '🌍 Worldwide'}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: job.eligibility === 'us_only' ? '#dbeafe' : job.eligibility === 'restricted' ? '#fee2e2' : '#dcfce7', color: job.eligibility === 'us_only' ? '#1d4ed8' : job.eligibility === 'restricted' ? '#b91c1c' : '#15803d' }}>{job.eligibility === 'us_only' ? '🇺🇸 US-based (remote OK)' : job.eligibility === 'restricted' ? '🚫 Country-restricted' : job.eligibility === 'latam' ? '🌎 LATAM OK' : '🌍 Worldwide'}</span>
                     ) : null}
                     {[job.remoteType, job.location, job.salaryText].filter(Boolean).map((tag: any, k: number) => (
                       <span key={k} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 999, background: 'rgba(0,0,0,0.06)', color: '#334155' }}>{tag}</span>

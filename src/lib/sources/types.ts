@@ -4,10 +4,11 @@
 export type RemoteType = 'remote' | 'hybrid' | 'onsite' | 'unknown'
 
 // Can someone based in LATAM (e.g. Costa Rica) actually apply?
-export type Eligibility = 'worldwide' | 'latam' | 'us_only' | 'unknown'
+// 'restricted' = tied to a specific non-US country/region (UK-only, EU-only, ...).
+export type Eligibility = 'worldwide' | 'latam' | 'us_only' | 'restricted' | 'unknown'
 
 export type NormalizedJob = {
-  source: string // 'mentorhood' | 'remotive' | ...
+  source: string // 'mentorhood' | 'getonbrd' | ...
   title: string
   company: string
   description: string // plain text
