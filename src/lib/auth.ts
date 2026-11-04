@@ -39,7 +39,12 @@ export function verifySessionToken(token: string): string | null {
   if (parts.length !== 2) return null
   const [userId, signature] = parts
   const expected = createHmac('sha256', SECRET).update(userId).digest('hex')
-  if (!timingSafeEqual(Buffer.from(signature, 'hex'), Buffer.from(expected, 'hex'))) return null
+  const sigBuf = Buffer.from(signature, 'hex')
+  const expBuf = Buffer.from(expected, 'hex')
+  // timingSafeEqual throws on length mismatch — a malformed cookie must mean
+  // "not logged in", never a crashed request.
+  if (sigBuf.length !== expBuf.length) return null
+  if (!timingSafeEqual(sigBuf, expBuf)) return null
   return userId
 }
 

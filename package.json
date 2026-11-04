@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "ci": "npm run build",
-    "audit": "npm audit --audit-level=low"
+    "audit": "npm audit --audit-level=low",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.20.0",
@@ -29,7 +31,8 @@
     "autoprefixer": "^10",
     "postcss": "^8.5.14",
     "tailwindcss": "^3.4.1",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^3.2.7"
   },
   "overrides": {
     "next": {
