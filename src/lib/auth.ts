@@ -25,7 +25,11 @@ export function verifyPassword(password: string, hash: string): boolean {
   const [salt, key] = hash.split(':')
   if (!salt || !key) return false
   const derived = scryptSync(password, salt, 64)
-  return timingSafeEqual(Buffer.from(key, 'hex'), derived)
+  const keyBuf = Buffer.from(key, 'hex')
+  // timingSafeEqual throws on length mismatch — a malformed stored hash must
+  // mean "wrong password", never a crashed request.
+  if (keyBuf.length !== derived.length) return false
+  return timingSafeEqual(keyBuf, derived)
 }
 
 export function createSessionToken(userId: string): string {
