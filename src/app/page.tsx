@@ -3,6 +3,7 @@ import { useState, useEffect, useRef } from 'react'
 import { AppState, UserProfile, Job, Education, Certification, Language, GeneratedCV, CVData } from '@/lib/types'
 import { loadState, saveState, calcProfileStrength, buildProfileText, uid, defaultProfile, defaultState } from '@/lib/state'
 import { CV_TEMPLATES, renderCV } from '@/lib/templates'
+import { ScoreBadge, EligibilityBadge } from '@/components/JobBadges'
 
 const resolveTemplateId = (value?: string) => {
   const normalized = value?.trim().toLowerCase()
@@ -1270,20 +1271,9 @@ export default function App() {
                 <div key={idx} style={{ border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: 14, background: '#fff' }}>
                   <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>{job.title}</div>
                   <div style={{ color: '#64748b', fontSize: 13 }}>{job.company} · <span style={{ textTransform: 'capitalize' }}>{job.source}</span></div>
-                  {typeof job.score === 'number' && (
-                    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <span style={{ fontSize: 12, fontWeight: 800, padding: '2px 8px', borderRadius: 999, color: '#fff', background: job.score >= 70 ? '#059669' : job.score >= 40 ? '#d97706' : '#dc2626' }}>{job.score}% match</span>
-                      {job.reason ? <span style={{ fontSize: 12, color: '#64748b' }}>{job.reason}</span> : null}
-                    </div>
-                  )}
+                  {typeof job.score === 'number' && <ScoreBadge score={job.score} reason={job.reason} />}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                    {job.aiEligible ? (
-                      <span title={job.aiEligReason || ''} style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: job.aiEligible === 'yes' ? '#dcfce7' : job.aiEligible === 'no' ? '#fee2e2' : '#fef3c7', color: job.aiEligible === 'yes' ? '#15803d' : job.aiEligible === 'no' ? '#b91c1c' : '#92400e' }}>
-                        {job.aiEligible === 'yes' ? '✅ Apply from CR' : job.aiEligible === 'no' ? '⛔ Needs work auth' : '❓ Check eligibility'}{job.aiEligReason ? ` · ${job.aiEligReason}` : ''}
-                      </span>
-                    ) : job.eligibility && job.eligibility !== 'unknown' ? (
-                      <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 9px', borderRadius: 999, background: job.eligibility === 'us_only' ? '#dbeafe' : job.eligibility === 'restricted' ? '#fee2e2' : '#dcfce7', color: job.eligibility === 'us_only' ? '#1d4ed8' : job.eligibility === 'restricted' ? '#b91c1c' : '#15803d' }}>{job.eligibility === 'us_only' ? '🇺🇸 US-based (remote OK)' : job.eligibility === 'restricted' ? '🚫 Country-restricted' : job.eligibility === 'latam' ? '🌎 LATAM OK' : '🌍 Worldwide'}</span>
-                    ) : null}
+                    <EligibilityBadge aiEligible={job.aiEligible} aiEligReason={job.aiEligReason} eligibility={job.eligibility} />
                     {[job.remoteType, job.location, job.salaryText].filter(Boolean).map((tag: any, k: number) => (
                       <span key={k} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 999, background: 'rgba(0,0,0,0.06)', color: '#334155' }}>{tag}</span>
                     ))}
