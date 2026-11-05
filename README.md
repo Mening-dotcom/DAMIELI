@@ -14,6 +14,8 @@ Job boards are built for US/EU applicants. For someone in Latin America, most "r
 
 ## Architecture
 
+![System architecture](docs/architecture.png)
+
 ```mermaid
 flowchart TD
     UI[Next.js UI - single page app] -->|refresh jobs| SEARCH[/api/search/]
