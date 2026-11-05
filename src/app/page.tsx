@@ -4,12 +4,15 @@ import { AppState, UserProfile, Job, Education, Certification, Language, Generat
 import { loadState, saveState, calcProfileStrength, buildProfileText, uid, defaultProfile, defaultState } from '@/lib/state'
 import { renderCV } from '@/lib/templates'
 import { resolveTemplateId } from '@/lib/export'
-import { Card, Field, Input, EntryItem, AddBtn, Modal, inputStyle, textareaStyle, primaryBtnStyle, ghostBtnStyle } from '@/components/ui'
 import { HomeTab } from '@/components/HomeTab'
 import { HistoryTab } from '@/components/HistoryTab'
 import { SettingsTab } from '@/components/SettingsTab'
 import { JobsTab } from '@/components/JobsTab'
 import { GenerateTab } from '@/components/GenerateTab'
+import { ProfileTab } from '@/components/ProfileTab'
+import { ProfileModals } from '@/components/ProfileModals'
+import { AuthModal } from '@/components/AuthModal'
+import { Sidebar } from '@/components/Sidebar'
 
 
 // ─── Main App ──────────────────────────────────────────────────────
@@ -217,7 +220,6 @@ export default function App() {
   const [authLoading, setAuthLoading] = useState(false)
   const [isMobile, setIsMobile] = useState(false)
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const fileRef = useRef<HTMLInputElement>(null)
   const previewRef = useRef<HTMLDivElement | null>(null)
   const stateRef = useRef<AppState>(state)
   const currentUserRef = useRef<{ id: string; email: string } | null>(currentUser)
@@ -227,6 +229,15 @@ export default function App() {
   const [eduForm, setEduForm] = useState<Partial<Education>>({})
   const [certForm, setCertForm] = useState<Partial<Certification>>({})
   const [langForm, setLangForm] = useState<Partial<Language>>({})
+
+  const openModal = (kind: 'job' | 'edu' | 'cert' | 'lang', form: object, idx: number | null) => {
+    if (kind === 'job') setJobForm(form)
+    else if (kind === 'edu') setEduForm(form)
+    else if (kind === 'cert') setCertForm(form)
+    else setLangForm(form)
+    setEditIdx(idx)
+    setModal(kind)
+  }
 
   useEffect(() => {
     stateRef.current = state
@@ -548,56 +559,7 @@ export default function App() {
   // ─── RENDER ────────────────────────────────────────────────────
   return (
     <div style={{ display: 'flex', flexDirection: isMobile ? 'column' : 'row', minHeight: '100vh', maxWidth: '100%', overflowX: 'hidden' }}>
-      {/* Sidebar */}
-      {isMobile && (
-        <div style={{ position: 'sticky', top: 0, zIndex: 30, display: 'flex', alignItems: 'center', gap: 10, padding: '12px 16px', background: 'rgba(255,255,255,0.96)', borderBottom: '1px solid rgba(15,23,42,0.08)', backdropFilter: 'blur(8px)' }}>
-          <button onClick={() => setSidebarOpen(v => !v)} style={{ border: '1px solid rgba(15,23,42,0.12)', background: '#fff', color: '#0b3d91', borderRadius: 10, padding: '8px 10px', cursor: 'pointer' }}>☰</button>
-          <div style={{ fontFamily: 'Syne', fontSize: 16, fontWeight: 800, color: '#0b3d91' }}>DAMIELI</div>
-        </div>
-      )}
-      {isMobile && sidebarOpen && <div onClick={() => setSidebarOpen(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,23,42,0.35)', zIndex: 20 }} />}
-      <nav style={{ width: isMobile ? '85%' : 240, maxWidth: isMobile ? 300 : 240, background: 'linear-gradient(165deg, #1e3a8a 0%, #4f46e5 50%, #be185d 120%)', borderRight: isMobile ? 'none' : '1px solid rgba(255,255,255,0.12)', display: isMobile ? (sidebarOpen ? 'flex' : 'none') : 'flex', flexDirection: 'column', position: 'fixed', top: 0, left: 0, bottom: 0, height: '100vh', zIndex: isMobile ? 40 : 25, padding: '22px 0', overflowY: 'auto' }}>
-        <div style={{ padding: '22px 24px 18px', borderBottom: '1px solid rgba(255,255,255,0.08)' }}>
-          <div style={{ fontFamily: 'Syne', fontSize: 24, fontWeight: 900, color: '#ffffff', letterSpacing: -1 }}>DAMIELI</div>
-          <div style={{ fontSize: 12, color: '#c4ccf8', marginTop: 4, maxWidth: 200 }}>Fast resume studio with easy CV creation and clean downloads.</div>
-          {syncStatus ? <div style={{ marginTop: 10, fontSize: 11, color: '#bfdbfe', lineHeight: 1.4 }}>{syncStatus}</div> : null}
-        </div>
-        <div style={{ padding: '18px 24px', borderBottom: '1px solid rgba(255,255,255,0.08)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {currentUser ? (
-            <div style={{ color: '#fff', fontSize: 12, lineHeight: 1.5 }}>
-              Signed in as <strong style={{ color: '#dbeafe' }}>{currentUser.email}</strong>
-            </div>
-          ) : (
-            <div style={{ color: '#fff', fontSize: 12, lineHeight: 1.5 }}>Sign in to save your profile and history securely.</div>
-          )}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            {currentUser ? (
-              <button onClick={logout} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, background: '#0ea5e9', color: '#fff', border: 'none', cursor: 'pointer', fontSize: 12 }}>Logout</button>
-            ) : (
-              <>
-                <button onClick={() => setAuthModal('login')} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, background: '#38bdf8', color: '#0f172a', border: 'none', cursor: 'pointer', fontSize: 12 }}>Login</button>
-                <button onClick={() => setAuthModal('signup')} style={{ flex: 1, padding: '10px 12px', borderRadius: 10, background: '#f8fafc', color: '#0f172a', border: 'none', cursor: 'pointer', fontSize: 12 }}>Sign up</button>
-              </>
-            )}
-          </div>
-        </div>
-        <div style={{ padding: '18px 14px', flex: 1 }}>
-          {(['home', 'jobs', 'settings', 'profile', 'generate', 'history'] as const).map((s, i) => {
-            const labels = ['Dashboard', 'Jobs', 'Settings', 'Profile', 'Generate', 'History']
-            const icons = ['◈', '🔎', '⚙', '◉', '⚡', '◎']
-            return (
-              <button key={s} onClick={() => { setScreen(s); if (s === 'jobs' && jobsList.length === 0) loadJobs(); if (isMobile) setSidebarOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '12px 14px', borderRadius: 14, width: '100%', textAlign: 'left', border: 'none', cursor: 'pointer', fontSize: 13, marginBottom: 8, background: screen === s ? 'rgba(255,255,255,0.18)' : 'transparent', color: screen === s ? '#fff' : '#c7d2fe', fontFamily: 'DM Sans', fontWeight: screen === s ? 700 : 500, transition: 'all 0.15s' }}>
-                <span style={{ fontSize: 13 }}>{icons[i]}</span> {labels[i]}
-              </button>
-            )
-          })}
-        </div>
-        <div style={{ padding: '16px 20px', borderTop: '1px solid rgba(255,255,255,0.08)', fontSize: 11, color: '#c4ccf8', lineHeight: 1.6 }}>
-          Created by Steven M<br />
-          <span style={{ color: 'var(--success)' }}>●</span> {state.stats.cvsGenerated} CVs generated<br />
-          <span style={{ color: 'var(--info)' }}>⏱</span> {state.stats.totalTimeSaved}m saved
-        </div>
-      </nav>
+      <Sidebar isMobile={isMobile} sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen} screen={screen} onNav={(s) => { setScreen(s); if (s === 'jobs' && jobsList.length === 0) loadJobs(); if (isMobile) setSidebarOpen(false) }} currentUser={currentUser} logout={logout} setAuthModal={setAuthModal} syncStatus={syncStatus} stats={state.stats} />
 
       {/* Main */}
       <main style={{ marginLeft: isMobile ? 0 : 240, flex: 1, padding: isMobile ? '20px 16px 32px' : '32px 40px', maxWidth: 1040, width: '100%', overflowX: 'hidden', paddingTop: isMobile ? 18 : '32px' }}>
@@ -609,114 +571,7 @@ export default function App() {
 
         {/* ── PROFILE ── */}
         {screen === 'profile' && (
-          <div className="fade-in">
-            <div style={{ marginBottom: 24 }}>
-              <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, marginBottom: 4, color: '#0b3d91' }}>My Profile</h1>
-              <p style={{ color: '#0b3d91', fontSize: 13 }}>The richer your profile, the better every generated CV will be. Add your experience, skills, and projects.</p>
-            </div>
-
-            {/* Upload CV */}
-            <div style={{ background: 'rgba(95,184,255,0.05)', border: '1px solid rgba(95,184,255,0.2)', borderRadius: 12, padding: '14px 20px', marginBottom: 20, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div>
-                <div style={{ fontFamily: 'Syne', fontSize: 13, fontWeight: 700, color: '#0b3d91' }}>Upload existing CV</div>
-                <div style={{ fontSize: 12, color: '#0b3d91', marginTop: 2 }}>
-                  {state.profile.uploadedCVText ? '✓ CV text loaded — the generator will use this as additional context' : 'Import your existing CV (.txt) to provide more context'}
-                </div>
-              </div>
-              <button onClick={() => fileRef.current?.click()} style={{ padding: '7px 16px', borderRadius: 8, background: 'rgba(95,184,255,0.12)', color: 'var(--info)', border: '1px solid rgba(95,184,255,0.25)', cursor: 'pointer', fontSize: 12, fontFamily: 'DM Sans' }}>
-                {state.profile.uploadedCVText ? 'Replace' : 'Upload .txt'}
-              </button>
-              <input ref={fileRef} type="file" accept=".txt" style={{ display: 'none' }} onChange={handleCVUpload} />
-            </div>
-
-            {/* Personal Info */}
-            <Card title="Personal Info">
-              <div style={{ display: 'grid', gridTemplateColumns: responsiveTwoColGrid, gap: 14 }}>
-                <Field label="Full name"><Input value={state.profile.name} onChange={v => updateProfile({ name: v })} placeholder="Steven" /></Field>
-                <Field label="Job title / headline"><Input value={state.profile.headline} onChange={v => updateProfile({ headline: v })} placeholder="Software Engineer" /></Field>
-              </div>
-              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 8 }}>Change your name anytime — this is the name used on all downloads and saved CV previews.</div>
-              <div style={{ display: 'grid', gridTemplateColumns: responsiveThreeColGrid, gap: 14 }}>
-                <Field label="Email"><Input value={state.profile.email} onChange={v => updateProfile({ email: v })} placeholder="steven@email.com" /></Field>
-                <Field label="Phone"><Input value={state.profile.phone} onChange={v => updateProfile({ phone: v })} placeholder="+506 ..." /></Field>
-                <Field label="Location"><Input value={state.profile.location} onChange={v => updateProfile({ location: v })} placeholder="San José, CR" /></Field>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-                <Field label="LinkedIn URL"><Input value={state.profile.linkedin} onChange={v => updateProfile({ linkedin: v })} placeholder="linkedin.com/in/steven" /></Field>
-                <Field label="Portfolio / GitHub"><Input value={state.profile.portfolio} onChange={v => updateProfile({ portfolio: v })} placeholder="github.com/steven" /></Field>
-              </div>
-              <Field label="Professional summary — your elevator pitch (the generator adapts this per job)">
-                <textarea value={state.profile.summary} onChange={e => updateProfile({ summary: e.target.value })} rows={3} placeholder="Results-driven software engineer with 5+ years building scalable systems..." style={textareaStyle} />
-              </Field>
-            </Card>
-
-            {/* Work Experience */}
-            <Card title={`Work Experience (${state.profile.jobs.length})`}>
-              {state.profile.jobs.map((j, i) => (
-                <EntryItem key={j.id} title={j.title} sub={`${j.company} · ${j.start} – ${j.end || 'Present'}`}
-                  onEdit={() => { setJobForm(j); setEditIdx(i); setModal('job') }}
-                  onDelete={() => { const jobs = [...state.profile.jobs]; jobs.splice(i, 1); updateProfile({ jobs }) }} />
-              ))}
-              <AddBtn onClick={() => { setJobForm({}); setEditIdx(null); setModal('job') }}>+ Add position</AddBtn>
-            </Card>
-
-            {/* Education */}
-            <Card title={`Education (${state.profile.education.length})`}>
-              {state.profile.education.map((e, i) => (
-                <EntryItem key={e.id} title={e.degree} sub={`${e.school} · ${e.endYear}`}
-                  onEdit={() => { setEduForm(e); setEditIdx(i); setModal('edu') }}
-                  onDelete={() => { const education = [...state.profile.education]; education.splice(i, 1); updateProfile({ education }) }} />
-              ))}
-              <AddBtn onClick={() => { setEduForm({}); setEditIdx(null); setModal('edu') }}>+ Add education</AddBtn>
-            </Card>
-
-            {/* Certifications */}
-            <Card title={`Courses & Certifications (${state.profile.certifications.length})`}>
-              {state.profile.certifications.map((c, i) => (
-                <EntryItem key={c.id} title={c.name} sub={`${c.issuer}${c.date ? ' · ' + c.date : ''}`}
-                  onEdit={() => { setCertForm(c); setEditIdx(i); setModal('cert') }}
-                  onDelete={() => { const certifications = [...state.profile.certifications]; certifications.splice(i, 1); updateProfile({ certifications }) }} />
-              ))}
-              <AddBtn onClick={() => { setCertForm({}); setEditIdx(null); setModal('cert') }}>+ Add course / certification</AddBtn>
-            </Card>
-
-            {/* Skills */}
-            <Card title={`Skills (${state.profile.skills.length})`}>
-              <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
-                <input value={skillInput} onChange={e => setSkillInput(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && skillInput.trim()) { if (!state.profile.skills.includes(skillInput.trim())) updateProfile({ skills: [...state.profile.skills, skillInput.trim()] }); setSkillInput('') } }} placeholder="Type a skill and press Enter..." style={{ ...inputStyle, flex: 1 }} />
-                <button onClick={() => { if (skillInput.trim() && !state.profile.skills.includes(skillInput.trim())) { updateProfile({ skills: [...state.profile.skills, skillInput.trim()] }); setSkillInput('') } }} style={ghostBtnStyle}>Add</button>
-              </div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {state.profile.skills.map(s => (
-                  <span key={s} style={{ background: 'var(--surface3)', border: '1px solid var(--border)', borderRadius: 100, padding: '4px 12px', fontSize: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-                    {s}
-                    <button onClick={() => updateProfile({ skills: state.profile.skills.filter(x => x !== s) })} style={{ background: 'none', border: 'none', color: 'var(--muted)', cursor: 'pointer', fontSize: 14, padding: 0, lineHeight: 1 }}>✕</button>
-                  </span>
-                ))}
-              </div>
-            </Card>
-
-            {/* Languages */}
-            <Card title={`Languages (${state.profile.languages.length})`}>
-              {state.profile.languages.map((l, i) => (
-                <EntryItem key={l.id} title={l.name} sub={l.level}
-                  onEdit={() => { setLangForm(l); setEditIdx(i); setModal('lang') }}
-                  onDelete={() => { const languages = [...state.profile.languages]; languages.splice(i, 1); updateProfile({ languages }) }} />
-              ))}
-              <AddBtn onClick={() => { setLangForm({}); setEditIdx(null); setModal('lang') }}>+ Add language</AddBtn>
-            </Card>
-
-            {/* Achievements */}
-            <Card title="Achievements, Projects & Extra">
-              <Field label="Add awards, open source projects, volunteer work, side projects, anything notable">
-                <textarea value={state.profile.achievements} onChange={e => updateProfile({ achievements: e.target.value })} rows={4} placeholder="- Built Cvbuilder.ai or a career tool used by 50+ people&#10;- Won regional hackathon 2023&#10;- Open source contributor: 200+ GitHub stars" style={textareaStyle} />
-              </Field>
-            </Card>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 8 }}>
-              <button onClick={() => setScreen('generate')} style={primaryBtnStyle}>Profile saved → Generate CV ⚡</button>
-            </div>
-          </div>
+          <ProfileTab profile={state.profile} updateProfile={updateProfile} skillInput={skillInput} setSkillInput={setSkillInput} openModal={openModal} onCVUpload={handleCVUpload} setScreen={setScreen} isMobile={isMobile} />
         )}
 
         {/* ── GENERATE ── */}
@@ -741,118 +596,9 @@ export default function App() {
       </main>
 
       {/* ── MODALS ── */}
-      {authModal && (
-        <Modal title={authModal === 'login' ? 'Sign in to DAMIELI' : 'Create your account'} onClose={() => setAuthModal(null)}
-          onSave={() => authRequest(authModal)}>
-          <div style={{ marginBottom: 18, color: 'var(--muted)', fontSize: 13 }}>
-            {authModal === 'login'
-              ? 'Enter your email and password to access your saved CV history.'
-              : 'Create a secure account to store your profile and generated CVs. If your email already exists, please sign in instead.'}
-          </div>
-          <Field label="Email">
-            <Input value={authEmail} onChange={setAuthEmail} placeholder="you@example.com" />
-          </Field>
-          <Field label="Password">
-            <input type="password" value={authPassword} onChange={e => setAuthPassword(e.target.value)} placeholder="Password" style={inputStyle} />
-          </Field>
-          {authStatus && <div style={{ color: 'var(--danger)', marginTop: 10, fontSize: 12 }}>{authStatus}</div>}
-          {syncStatus && !authStatus && <div style={{ color: '#2563eb', marginTop: 10, fontSize: 12 }}>{syncStatus}</div>}
-          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
-            <button onClick={() => setAuthModal(null)} style={ghostBtnStyle}>Cancel</button>
-            <button onClick={() => authRequest(authModal)} style={{ ...primaryBtnStyle, opacity: authLoading ? 0.6 : 1 }} disabled={authLoading}>{authLoading ? 'Working…' : authModal === 'login' ? 'Login' : 'Sign up'}</button>
-          </div>
-        </Modal>
-      )}
+      <AuthModal authModal={authModal} setAuthModal={setAuthModal} authEmail={authEmail} setAuthEmail={setAuthEmail} authPassword={authPassword} setAuthPassword={setAuthPassword} authStatus={authStatus} syncStatus={syncStatus} authLoading={authLoading} authRequest={authRequest} />
 
-      {modal === 'job' && (
-        <Modal title={editIdx !== null ? 'Edit position' : 'Add work experience'} onClose={() => setModal(null)}
-          onSave={() => {
-            if (!jobForm.title) return
-            const entry: Job = { id: uid(), title: jobForm.title || '', company: jobForm.company || '', start: jobForm.start || '', end: jobForm.end || '', location: jobForm.location || '', description: jobForm.description || '', technologies: jobForm.technologies || '' }
-            const jobs = [...state.profile.jobs]
-            if (editIdx !== null) jobs[editIdx] = entry; else jobs.unshift(entry)
-            updateProfile({ jobs }); setModal(null)
-          }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Field label="Job title"><Input value={jobForm.title || ''} onChange={v => setJobForm(f => ({ ...f, title: v }))} placeholder="Software Engineer" /></Field>
-            <Field label="Company"><Input value={jobForm.company || ''} onChange={v => setJobForm(f => ({ ...f, company: v }))} placeholder="Acme Corp" /></Field>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14 }}>
-            <Field label="Start"><Input value={jobForm.start || ''} onChange={v => setJobForm(f => ({ ...f, start: v }))} placeholder="Jan 2021" /></Field>
-            <Field label="End"><Input value={jobForm.end || ''} onChange={v => setJobForm(f => ({ ...f, end: v }))} placeholder="Present" /></Field>
-            <Field label="Location"><Input value={jobForm.location || ''} onChange={v => setJobForm(f => ({ ...f, location: v }))} placeholder="Remote" /></Field>
-          </div>
-          <Field label="Description & achievements — be specific, include numbers and results">
-            <textarea value={jobForm.description || ''} onChange={e => setJobForm(f => ({ ...f, description: e.target.value }))} rows={5} placeholder="- Led migration from monolith to microservices, reducing deploy time by 60%&#10;- Managed team of 5 engineers&#10;- Built CI/CD pipeline, cut production bugs by 40%" style={textareaStyle} />
-          </Field>
-          <Field label="Technologies / tools used">
-            <Input value={jobForm.technologies || ''} onChange={v => setJobForm(f => ({ ...f, technologies: v }))} placeholder="React, Node.js, PostgreSQL, AWS, Docker" />
-          </Field>
-        </Modal>
-      )}
-
-      {modal === 'edu' && (
-        <Modal title={editIdx !== null ? 'Edit education' : 'Add education'} onClose={() => setModal(null)}
-          onSave={() => {
-            if (!eduForm.degree) return
-            const entry: Education = { id: uid(), degree: eduForm.degree || '', school: eduForm.school || '', startYear: eduForm.startYear || '', endYear: eduForm.endYear || '', notes: eduForm.notes || '' }
-            const education = [...state.profile.education]
-            if (editIdx !== null) education[editIdx] = entry; else education.push(entry)
-            updateProfile({ education }); setModal(null)
-          }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Field label="Degree / qualification"><Input value={eduForm.degree || ''} onChange={v => setEduForm(f => ({ ...f, degree: v }))} placeholder="BSc Computer Science" /></Field>
-            <Field label="Institution"><Input value={eduForm.school || ''} onChange={v => setEduForm(f => ({ ...f, school: v }))} placeholder="University of..." /></Field>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Field label="Start year"><Input value={eduForm.startYear || ''} onChange={v => setEduForm(f => ({ ...f, startYear: v }))} placeholder="2018" /></Field>
-            <Field label="End year"><Input value={eduForm.endYear || ''} onChange={v => setEduForm(f => ({ ...f, endYear: v }))} placeholder="2022" /></Field>
-          </div>
-          <Field label="Honors, GPA, thesis, notable coursework (optional)">
-            <textarea value={eduForm.notes || ''} onChange={e => setEduForm(f => ({ ...f, notes: e.target.value }))} rows={2} placeholder="GPA 3.8, Dean's list, Thesis: ..." style={textareaStyle} />
-          </Field>
-        </Modal>
-      )}
-
-      {modal === 'cert' && (
-        <Modal title="Add certification / course" onClose={() => setModal(null)}
-          onSave={() => {
-            if (!certForm.name) return
-            const entry: Certification = { id: uid(), name: certForm.name || '', issuer: certForm.issuer || '', date: certForm.date || '', credentialId: certForm.credentialId || '' }
-            const certifications = [...state.profile.certifications]
-            if (editIdx !== null) certifications[editIdx] = entry; else certifications.push(entry)
-            updateProfile({ certifications }); setModal(null)
-          }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Field label="Certificate name"><Input value={certForm.name || ''} onChange={v => setCertForm(f => ({ ...f, name: v }))} placeholder="AWS Solutions Architect" /></Field>
-            <Field label="Issuer / Platform"><Input value={certForm.issuer || ''} onChange={v => setCertForm(f => ({ ...f, issuer: v }))} placeholder="Amazon / Coursera / Udemy" /></Field>
-          </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Field label="Date"><Input value={certForm.date || ''} onChange={v => setCertForm(f => ({ ...f, date: v }))} placeholder="2023" /></Field>
-            <Field label="Credential ID (optional)"><Input value={certForm.credentialId || ''} onChange={v => setCertForm(f => ({ ...f, credentialId: v }))} placeholder="ABC-1234" /></Field>
-          </div>
-        </Modal>
-      )}
-
-      {modal === 'lang' && (
-        <Modal title="Add language" onClose={() => setModal(null)}
-          onSave={() => {
-            if (!langForm.name) return
-            const entry: Language = { id: uid(), name: langForm.name || '', level: langForm.level || 'Fluent' }
-            const languages = [...state.profile.languages]
-            if (editIdx !== null) languages[editIdx] = entry; else languages.push(entry)
-            updateProfile({ languages }); setModal(null)
-          }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-            <Field label="Language"><Input value={langForm.name || ''} onChange={v => setLangForm(f => ({ ...f, name: v }))} placeholder="Spanish" /></Field>
-            <Field label="Level">
-              <select value={langForm.level || 'Fluent'} onChange={e => setLangForm(f => ({ ...f, level: e.target.value }))} style={inputStyle}>
-                {['Native', 'Fluent', 'Advanced (C1)', 'Upper-Intermediate (B2)', 'Intermediate (B1)', 'Basic (A2)'].map(l => <option key={l}>{l}</option>)}
-              </select>
-            </Field>
-          </div>
-        </Modal>
-      )}
+      <ProfileModals modal={modal} setModal={setModal} editIdx={editIdx} profile={state.profile} updateProfile={updateProfile} jobForm={jobForm} setJobForm={setJobForm} eduForm={eduForm} setEduForm={setEduForm} certForm={certForm} setCertForm={setCertForm} langForm={langForm} setLangForm={setLangForm} />
     </div>
   )
 }
