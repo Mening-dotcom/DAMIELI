@@ -3,6 +3,8 @@
 // constants every screen uses.
 import React from 'react'
 
+export type Screen = 'home' | 'jobs' | 'settings' | 'profile' | 'generate' | 'history'
+
 // ─── Style constants ───────────────────────────────────────────────
 // ─── Style constants ───────────────────────────────────────────────
 export const inputStyle: React.CSSProperties = { width: '100%', background: '#ffffff', border: '1px solid #dfe4f3', borderRadius: 10, padding: '11px 14px', color: '#0e1430', fontFamily: 'DM Sans', fontSize: 13, outline: 'none' }
