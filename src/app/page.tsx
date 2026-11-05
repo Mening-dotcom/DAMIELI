@@ -2,14 +2,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { AppState, UserProfile, Job, Education, Certification, Language, GeneratedCV, CVData } from '@/lib/types'
 import { loadState, saveState, calcProfileStrength, buildProfileText, uid, defaultProfile, defaultState } from '@/lib/state'
-import { CV_TEMPLATES, renderCV } from '@/lib/templates'
-import { ScoreBadge, EligibilityBadge } from '@/components/JobBadges'
-import { resolveTemplateId, downloadPDF, downloadWord } from '@/lib/export'
-import { CVPreview } from '@/components/CVPreview'
+import { renderCV } from '@/lib/templates'
+import { resolveTemplateId } from '@/lib/export'
 import { Card, Field, Input, EntryItem, AddBtn, Modal, inputStyle, textareaStyle, primaryBtnStyle, ghostBtnStyle } from '@/components/ui'
 import { HomeTab } from '@/components/HomeTab'
 import { HistoryTab } from '@/components/HistoryTab'
 import { SettingsTab } from '@/components/SettingsTab'
+import { JobsTab } from '@/components/JobsTab'
+import { GenerateTab } from '@/components/GenerateTab'
 
 
 // ─── Main App ──────────────────────────────────────────────────────
@@ -35,7 +35,6 @@ export default function App() {
   const [matching, setMatching] = useState(false)
   const [rolesLoading, setRolesLoading] = useState(false)
   const [jobsSources, setJobsSources] = useState(0)
-  const JOBS_PER_PAGE = 8
   // Remote-friendly starter roles — replaced automatically from the user's
   // profile the first time they open the Jobs tab (see auto-pick effect).
   const [searchPrefs, setSearchPrefs] = useState({ modality: 'remote', seniority: 'Junior', minSalary: 0, zone: '', keywords: 'customer service, customer support, virtual assistant, data entry, QA tester, IT support', onlyApplyable: true })
@@ -722,233 +721,14 @@ export default function App() {
 
         {/* ── GENERATE ── */}
         {screen === 'generate' && (
-          <div className="fade-in">
-            <div style={{ marginBottom: 24 }}>
-              <h1 style={{ fontSize: 26, fontWeight: 800, letterSpacing: -0.5, marginBottom: 4 }}>Generate CV</h1>
-              <p style={{ color: 'var(--muted)', fontSize: 13 }}>Paste a job link or description — the system reads it and matches your CV to the role.</p>
-            </div>
-
-            <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, padding: '24px 28px', marginBottom: 20 }}>
-              <div style={{ fontFamily: 'Syne', fontSize: 20, fontWeight: 700, marginBottom: 6 }}>What job are you applying to?</div>
-              <div style={{ color: 'var(--muted)', fontSize: 13, marginBottom: 20, lineHeight: 1.7 }}>
-                Paste the URL or full job text below. The tool extracts keywords, requirements, and tone — then rebuilds your CV to match with confidence.
-              </div>
-
-              {/* URL row */}
-              <div style={{ display: 'flex', gap: 10, marginBottom: 16, flexDirection: isMobile ? 'column' : 'row' }}>
-                <input value={jobUrl} onChange={e => setJobUrl(e.target.value)} placeholder="https://linkedin.com/jobs/... or any job URL" style={{ ...inputStyle, flex: 1, fontSize: 13 }} />
-                <button onClick={fetchJob} disabled={fetchingUrl || !jobUrl} style={{ ...primaryBtnStyle, opacity: fetchingUrl || !jobUrl ? 0.5 : 1, width: isMobile ? '100%' : 'auto' }}>
-                  {fetchingUrl ? '...' : 'Fetch'}
-                </button>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, color: 'var(--muted)', fontSize: 12, margin: '12px 0' }}>
-                <div style={{ flex: 1, height: 1, background: 'var(--border)' }} /> or paste directly <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
-              </div>
-
-              <Field label="Full job description">
-                <textarea value={jobText} onChange={e => setJobText(e.target.value)} rows={9} placeholder="Paste the complete job description here — responsibilities, requirements, nice-to-haves, company info. The more detail provided, the sharper the match." style={textareaStyle} />
-              </Field>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 14, marginTop: 14 }}>
-                <Field label="Company name"><Input value={jobCompany} onChange={setJobCompany} placeholder="Acme Corp" /></Field>
-                <Field label="Role title"><Input value={jobRole} onChange={setJobRole} placeholder="Senior Software Engineer" /></Field>
-                <Field label="Language">
-                  <select value={outputLanguage} onChange={e => updateOutputLanguage(e.target.value as 'English' | 'Spanish')} style={inputStyle}>
-                    <option value="English">English</option>
-                    <option value="Spanish">Spanish</option>
-                  </select>
-                </Field>
-              </div>
-
-              <div style={{ marginTop: 20 }}>
-                <button onClick={generate} disabled={generating || !jobText.trim()} style={{ ...primaryBtnStyle, padding: '12px 28px', fontSize: 15, opacity: generating || !jobText.trim() ? 0.5 : 1 }}>
-                  {generating ? '⏳ Generating...' : '⚡ Generate tailored CV'}
-                </button>
-              </div>
-            </div>
-
-            {/* Status */}
-            {genStatus && genStatus !== 'done' && (
-              <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 20px', marginBottom: 16, fontSize: 13, color: genStatus.startsWith('Error') ? 'var(--danger)' : 'var(--info)', display: 'flex', alignItems: 'center', gap: 8 }}>
-                {!genStatus.startsWith('Error') && <span style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid rgba(255,255,255,0.1)', borderTopColor: 'var(--info)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
-                {genStatus}
-              </div>
-            )}
-
-            {/* Result */}
-            {currentCV && (
-              <div className="fade-in">
-                {/* Download bar */}
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 20px', display: 'flex', alignItems: isMobile ? 'flex-start' : 'center', justifyContent: 'space-between', marginBottom: 16, flexDirection: isMobile ? 'column' : 'row', gap: isMobile ? 10 : 0 }}>
-                  <div style={{ fontSize: 13 }}>
-                    CV tailored for <strong style={{ color: 'var(--accent)' }}>{currentCV.role}</strong> @ <strong style={{ color: 'var(--accent)' }}>{currentCV.company}</strong>
-                    <span style={{ marginLeft: 12, background: 'rgba(74,240,160,0.12)', color: 'var(--success)', fontSize: 11, padding: '2px 10px', borderRadius: 100, border: '1px solid rgba(74,240,160,0.2)' }}>ATS Optimized ✓</span>
-                    <span style={{ marginLeft: 8, background: 'rgba(95,184,255,0.1)', color: 'var(--info)', fontSize: 11, padding: '2px 10px', borderRadius: 100, border: '1px solid rgba(95,184,255,0.2)' }}>⏱ ~{currentCV.timeSavedMinutes}min saved</span>
-                  </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => downloadWord(state.profile, currentCV.cvData, currentCV.role)} style={ghostBtnStyle}>⬇ Word</button>
-                    <button onClick={() => downloadPDF(state.profile, currentCV.cvData, currentCV.role, previewRef.current, effectiveTemplateId)} style={primaryBtnStyle}>⬇ PDF</button>
-                  </div>
-                </div>
-
-                {/* ATS */}
-                <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '18px 22px', marginBottom: 16 }}>
-                  <div style={{ fontFamily: 'Syne', fontSize: 12, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--muted)', marginBottom: 12 }}>ATS Analysis</div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
-                    <span>Keyword match score</span><span style={{ color: 'var(--accent)', fontWeight: 600 }}>{currentCV.atsScore}%</span>
-                  </div>
-                  <div style={{ height: 6, background: 'var(--surface3)', borderRadius: 100, overflow: 'hidden', marginBottom: 10 }}>
-                    <div style={{ height: '100%', width: currentCV.atsScore + '%', background: currentCV.atsScore > 80 ? 'var(--success)' : currentCV.atsScore > 60 ? 'var(--accent)' : 'var(--danger)', borderRadius: 100, transition: 'width 1s ease' }} />
-                  </div>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {currentCV.matchedKeywords.map(kw => (
-                      <span key={kw} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 100, background: 'rgba(200,240,74,0.1)', color: 'var(--accent)', border: '1px solid rgba(200,240,74,0.2)' }}>{kw}</span>
-                    ))}
-                  </div>
-                  {tailoringNotes && (
-                    <div style={{ marginTop: 12, padding: '10px 14px', background: 'rgba(95,184,255,0.06)', border: '1px solid rgba(95,184,255,0.15)', borderRadius: 8, fontSize: 12, color: 'var(--muted)', lineHeight: 1.6 }}>
-                      <strong style={{ color: 'var(--info)' }}>Tailoring notes:</strong> {tailoringNotes}
-                    </div>
-                  )}
-                </div>
-
-                {/* Template Selector */}
-                <div style={{ background: 'white', border: '1px solid #e5e7eb', borderRadius: 12, padding: '18px 22px', marginBottom: 16 }}>
-                  <div style={{ fontFamily: 'Syne', fontSize: 13, fontWeight: 700, textTransform: 'uppercase', letterSpacing: 0.5, color: '#666', marginBottom: 14 }}>📋 CV Template</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: responsiveTemplateGrid, gap: 10 }}>
-                    {CV_TEMPLATES.map(t => (
-                      <button key={t.id} onClick={() => updateTemplateSelection(t.id)} style={{ padding: '12px 14px', borderRadius: 8, cursor: 'pointer', fontSize: 12, color: selectedTemplate === t.id ? '#fff' : '#555', background: selectedTemplate === t.id ? '#c8f04a' : '#f3f4f6', border: selectedTemplate === t.id ? '2px solid #b8d63e' : '1px solid #d1d5db', fontWeight: selectedTemplate === t.id ? 600 : 500, transition: 'all 0.15s', textAlign: 'left' }}>
-                        <div style={{ fontWeight: 600, marginBottom: 2 }}>{t.name}</div>
-                        <div style={{ fontSize: 11, opacity: 0.7 }}>{t.description}</div>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* CV Tabs */}
-                <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-                  {(['preview', 'raw'] as const).map(t => (
-                    <button key={t} onClick={() => setCvTab(t)} style={{ padding: '7px 16px', borderRadius: 8, cursor: 'pointer', fontSize: 13, color: cvTab === t ? 'var(--text)' : 'var(--muted)', background: cvTab === t ? 'var(--surface2)' : 'none', border: cvTab === t ? '1px solid var(--border)' : '1px solid transparent', fontFamily: 'DM Sans', transition: 'all 0.15s' }}>
-                      {t === 'preview' ? 'CV Preview' : 'Plain text'}
-                    </button>
-                  ))}
-                </div>
-
-                {cvTab === 'preview' && <CVPreview profile={state.profile} cvData={currentCV.cvData} templateId={effectiveTemplateId} containerRef={previewRef} isMobile={isMobile} />}
-                {cvTab === 'raw' && (
-                  <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 24 }}>
-                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, color: 'var(--text)', fontFamily: 'DM Sans', lineHeight: 1.7 }}>{buildRawText(currentCV)}</pre>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
+          <GenerateTab profile={state.profile} jobUrl={jobUrl} setJobUrl={setJobUrl} jobText={jobText} setJobText={setJobText} jobCompany={jobCompany} setJobCompany={setJobCompany} jobRole={jobRole} setJobRole={setJobRole} fetchingUrl={fetchingUrl} fetchJob={fetchJob} generate={generate} generating={generating} genStatus={genStatus} currentCV={currentCV} outputLanguage={outputLanguage} updateOutputLanguage={updateOutputLanguage} selectedTemplate={selectedTemplate} updateTemplateSelection={updateTemplateSelection} cvTab={cvTab} setCvTab={setCvTab} tailoringNotes={tailoringNotes} effectiveTemplateId={effectiveTemplateId} previewRef={previewRef} buildRawText={buildRawText} isMobile={isMobile} />
         )}
 
         {/* ── HISTORY ── */}
         {/* ── JOBS ── */}
-        {screen === 'jobs' && (() => {
-          const pagerBtn = (active: boolean): React.CSSProperties => ({ minWidth: 34, padding: '7px 10px', borderRadius: 8, border: '1px solid ' + (active ? '#4f46e5' : '#cbd5e1'), background: active ? '#4f46e5' : '#fff', color: active ? '#fff' : '#0f172a', fontSize: 12, fontWeight: 600, cursor: 'pointer' })
-          const statusBtn = (active: boolean): React.CSSProperties => ({ padding: '9px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid ' + (active ? '#4f46e5' : '#dfe4f3'), background: active ? '#eef2ff' : '#fff', color: active ? '#4f46e5' : '#64748b' })
-          const statusOf = (j: any) => jobStatusMap[String(j.url || j.title || '')]
-          // "all" shows everything EXCEPT jobs you've hidden; the other tabs show
-          // exactly that status (saved / applied / hidden).
-          let viewed = jobView === 'all' ? jobsList.filter((j: any) => statusOf(j) !== 'hidden') : jobsList.filter((j: any) => statusOf(j) === jobView)
-          // In the main view, drop roles you can't apply to from Costa Rica.
-          // After Smart match we use the AI's real verdict (aiEligible === 'no');
-          // before that we fall back to the weak keyword guess. Toggle off for a
-          // US citizen (e.g. Nicole).
-          const applyFilterOn = searchPrefs.onlyApplyable && jobView === 'all'
-          const notApplyable = (j: any) => (j.aiEligible ? j.aiEligible === 'no' : j.eligibility === 'us_only' || j.eligibility === 'restricted')
-          const hiddenUsOnly = applyFilterOn ? viewed.filter(notApplyable).length : 0
-          if (applyFilterOn) viewed = viewed.filter((j: any) => !notApplyable(j))
-          const totalPages = Math.max(1, Math.ceil(viewed.length / JOBS_PER_PAGE))
-          const page = Math.min(jobsPage, totalPages)
-          const pageJobs = viewed.slice((page - 1) * JOBS_PER_PAGE, page * JOBS_PER_PAGE)
-          return (
-          <div>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
-              <div>
-                <h1 style={{ fontFamily: 'Syne', fontSize: 26, fontWeight: 800, margin: 0, color: '#0b3d91' }}>Jobs for you</h1>
-                <p style={{ color: '#475569', margin: '6px 0 0', fontSize: 14 }}>
-                  {jobsLoading
-                    ? 'Searching…'
-                    : jobsError
-                      ? <span style={{ color: '#ef4444' }}>Error: {jobsError}</span>
-                      : <><strong>{viewed.length}</strong> {jobView === 'all' ? 'you can apply to' : jobView} — from <strong>{jobsSources}</strong> sites.{jobView === 'all' && hiddenUsOnly > 0 ? ` ${hiddenUsOnly} US-only tucked away.` : ''} Hit <strong>⭐ Smart match</strong> to rank by fit.</>}
-                </p>
-              </div>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={scoreMatches} disabled={matching || !jobsList.length} style={{ ...primaryBtnStyle, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', boxShadow: 'none' }}>{matching ? 'Matching…' : '⭐ Smart match'}</button>
-                <button onClick={() => loadJobs()} disabled={jobsLoading} style={primaryBtnStyle}>↻ Refresh</button>
-                <button onClick={exportApplyList} disabled={!jobsList.length} title="Download your Saved jobs as jobs.json for the Apply Assistant" style={{ ...primaryBtnStyle, background: '#fff', color: '#4f46e5', border: '1px solid #c7d2fe', boxShadow: 'none' }}>⤓ Export apply list</button>
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
-              {(['all', 'saved', 'applied', 'hidden'] as const).map((v) => (
-                <button key={v} onClick={() => { setJobView(v); setJobsPage(1); setExpandedJob(null) }} style={{ padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer', textTransform: 'capitalize', border: '1px solid ' + (jobView === v ? '#4f46e5' : '#dfe4f3'), background: jobView === v ? '#4f46e5' : '#fff', color: jobView === v ? '#fff' : '#475569' }}>{v}</button>
-              ))}
-              <div style={{ width: 1, height: 20, background: '#dfe4f3', margin: '0 2px' }} />
-              <button
-                onClick={() => { const next = { ...searchPrefs, onlyApplyable: !searchPrefs.onlyApplyable }; setSearchPrefs(next); setJobsPage(1); try { window.localStorage.setItem('damieli_search_prefs', JSON.stringify(next)) } catch { /* ignore */ } }}
-                title="Hide jobs that require US work authorization. Turn off if you can legally work in the US."
-                style={{ padding: '6px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700, cursor: 'pointer', border: '1px solid ' + (searchPrefs.onlyApplyable ? '#16a34a' : '#dfe4f3'), background: searchPrefs.onlyApplyable ? '#dcfce7' : '#fff', color: searchPrefs.onlyApplyable ? '#15803d' : '#475569' }}
-              >🌎 Apply from Costa Rica {searchPrefs.onlyApplyable ? 'ON' : 'OFF'}</button>
-              {searchPrefs.onlyApplyable && hiddenUsOnly > 0 && (
-                <span style={{ fontSize: 12, color: '#64748b' }}>{hiddenUsOnly} US-only hidden</span>
-              )}
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {pageJobs.map((job: any, i: number) => {
-                const idx = (page - 1) * JOBS_PER_PAGE + i
-                const open = expandedJob === idx
-                return (
-                <div key={idx} style={{ border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: 14, background: '#fff' }}>
-                  <div style={{ fontWeight: 700, fontSize: 15, color: '#0f172a' }}>{job.title}</div>
-                  <div style={{ color: '#64748b', fontSize: 13 }}>{job.company} · <span style={{ textTransform: 'capitalize' }}>{job.source}</span></div>
-                  {typeof job.score === 'number' && <ScoreBadge score={job.score} reason={job.reason} />}
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
-                    <EligibilityBadge aiEligible={job.aiEligible} aiEligReason={job.aiEligReason} eligibility={job.eligibility} />
-                    {[job.remoteType, job.location, job.salaryText].filter(Boolean).map((tag: any, k: number) => (
-                      <span key={k} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 999, background: 'rgba(0,0,0,0.06)', color: '#334155' }}>{tag}</span>
-                    ))}
-                  </div>
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 12 }}>
-                    <button onClick={() => { setJobText(job.description || ''); setJobCompany(job.company || ''); setJobRole(job.title || ''); setJobUrl(job.url || ''); setScreen('generate') }} style={primaryBtnStyle}>Create tailored CV →</button>
-                    <a href={job.url} target="_blank" rel="noopener noreferrer" style={{ padding: '9px 14px', borderRadius: 10, background: '#f1f5f9', color: '#0f172a', border: '1px solid #e2e8f0', fontSize: 12, fontWeight: 600, textDecoration: 'none' }}>Open &amp; Apply →</a>
-                    <button onClick={() => setExpandedJob(open ? null : idx)} style={{ padding: '9px 14px', borderRadius: 10, background: 'transparent', color: '#4f46e5', border: '1px solid #cbd5e1', fontSize: 12, fontWeight: 600, cursor: 'pointer' }}>{open ? 'Hide details' : 'Details'}</button>
-                    <button onClick={() => markJob(job, 'saved')} style={statusBtn(statusOf(job) === 'saved')}>{statusOf(job) === 'saved' ? '★ Saved' : '☆ Save'}</button>
-                    <button onClick={() => markJob(job, 'applied')} style={statusBtn(statusOf(job) === 'applied')}>{statusOf(job) === 'applied' ? '✓ Applied' : 'Mark applied'}</button>
-                    <button onClick={() => markJob(job, 'hidden')} title="Can't apply to this one? Hide it so it stops showing up." style={{ ...statusBtn(statusOf(job) === 'hidden'), marginLeft: 'auto', color: statusOf(job) === 'hidden' ? '#4f46e5' : '#b91c1c', borderColor: statusOf(job) === 'hidden' ? '#4f46e5' : '#fecaca' }}>{statusOf(job) === 'hidden' ? '↩ Unhide' : "🚫 Can't apply"}</button>
-                  </div>
-                  {open && (
-                    <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #eef2f7', fontSize: 13, color: '#334155', lineHeight: 1.5, whiteSpace: 'pre-wrap', maxHeight: 280, overflow: 'auto' }}>
-                      {job.description ? String(job.description).slice(0, 4000) : 'No description provided.'}
-                    </div>
-                  )}
-                </div>
-                )
-              })}
-              {!jobsLoading && !jobsError && jobsList.length === 0 && (
-                <p style={{ color: '#64748b' }}>No jobs loaded yet — hit Refresh.</p>
-              )}
-            </div>
-
-            {viewed.length > JOBS_PER_PAGE && (
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', justifyContent: 'center', marginTop: 18 }}>
-                <button onClick={() => { setJobsPage(Math.max(1, page - 1)); setExpandedJob(null) }} disabled={page === 1} style={pagerBtn(false)}>‹ Prev</button>
-                {Array.from({ length: totalPages }).map((_, n) => (
-                  <button key={n} onClick={() => { setJobsPage(n + 1); setExpandedJob(null) }} style={pagerBtn(page === n + 1)}>{n + 1}</button>
-                ))}
-                <button onClick={() => { setJobsPage(Math.min(totalPages, page + 1)); setExpandedJob(null) }} disabled={page === totalPages} style={pagerBtn(false)}>Next ›</button>
-              </div>
-            )}
-          </div>
-          )
-        })()}
+        {screen === 'jobs' && (
+          <JobsTab jobsList={jobsList} jobsLoading={jobsLoading} jobsError={jobsError} jobsSources={jobsSources} matching={matching} jobsPage={jobsPage} setJobsPage={setJobsPage} expandedJob={expandedJob} setExpandedJob={setExpandedJob} jobView={jobView} setJobView={setJobView} jobStatusMap={jobStatusMap} markJob={markJob} searchPrefs={searchPrefs} setSearchPrefs={setSearchPrefs} loadJobs={() => loadJobs()} scoreMatches={scoreMatches} exportApplyList={exportApplyList} onCreateCV={(job) => { setJobText(job.description || ''); setJobCompany(job.company || ''); setJobRole(job.title || ''); setJobUrl(job.url || ''); setScreen('generate') }} />
+        )}
 
         {/* ── SETTINGS ── */}
         {screen === 'settings' && (
