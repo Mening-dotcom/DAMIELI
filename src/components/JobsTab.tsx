@@ -3,11 +3,12 @@ import React from 'react'
 import { ScoreBadge, EligibilityBadge } from './JobBadges'
 import { primaryBtnStyle } from './ui'
 import { SearchPrefs } from './SettingsTab'
+import { JobListing } from '@/lib/types'
 
 const JOBS_PER_PAGE = 8
 
 export function JobsTab({ jobsList, jobsLoading, jobsError, jobsSources, matching, jobsPage, setJobsPage, expandedJob, setExpandedJob, jobView, setJobView, jobStatusMap, markJob, searchPrefs, setSearchPrefs, loadJobs, scoreMatches, exportApplyList, onCreateCV }: {
-  jobsList: any[]
+  jobsList: JobListing[]
   jobsLoading: boolean
   jobsError: string
   jobsSources: number
@@ -19,28 +20,28 @@ export function JobsTab({ jobsList, jobsLoading, jobsError, jobsSources, matchin
   jobView: 'all' | 'saved' | 'applied' | 'hidden'
   setJobView: (v: 'all' | 'saved' | 'applied' | 'hidden') => void
   jobStatusMap: Record<string, string>
-  markJob: (job: any, status: 'saved' | 'applied' | 'hidden') => void
+  markJob: (job: JobListing, status: 'saved' | 'applied' | 'hidden') => void
   searchPrefs: SearchPrefs
   setSearchPrefs: (p: SearchPrefs) => void
   loadJobs: () => void
   scoreMatches: () => void
   exportApplyList: () => void
-  onCreateCV: (job: any) => void
+  onCreateCV: (job: JobListing) => void
 }) {
           const pagerBtn = (active: boolean): React.CSSProperties => ({ minWidth: 34, padding: '7px 10px', borderRadius: 8, border: '1px solid ' + (active ? '#4f46e5' : '#cbd5e1'), background: active ? '#4f46e5' : '#fff', color: active ? '#fff' : '#0f172a', fontSize: 12, fontWeight: 600, cursor: 'pointer' })
           const statusBtn = (active: boolean): React.CSSProperties => ({ padding: '9px 12px', borderRadius: 10, fontSize: 12, fontWeight: 600, cursor: 'pointer', border: '1px solid ' + (active ? '#4f46e5' : '#dfe4f3'), background: active ? '#eef2ff' : '#fff', color: active ? '#4f46e5' : '#64748b' })
-          const statusOf = (j: any) => jobStatusMap[String(j.url || j.title || '')]
+          const statusOf = (j: JobListing) => jobStatusMap[String(j.url || j.title || '')]
           // "all" shows everything EXCEPT jobs you've hidden; the other tabs show
           // exactly that status (saved / applied / hidden).
-          let viewed = jobView === 'all' ? jobsList.filter((j: any) => statusOf(j) !== 'hidden') : jobsList.filter((j: any) => statusOf(j) === jobView)
+          let viewed = jobView === 'all' ? jobsList.filter((j) => statusOf(j) !== 'hidden') : jobsList.filter((j) => statusOf(j) === jobView)
           // In the main view, drop roles you can't apply to from Costa Rica.
           // After Smart match we use the AI's real verdict (aiEligible === 'no');
           // before that we fall back to the weak keyword guess. Toggle off for a
           // US citizen (e.g. Nicole).
           const applyFilterOn = searchPrefs.onlyApplyable && jobView === 'all'
-          const notApplyable = (j: any) => (j.aiEligible ? j.aiEligible === 'no' : j.eligibility === 'us_only' || j.eligibility === 'restricted')
+          const notApplyable = (j: JobListing) => (j.aiEligible ? j.aiEligible === 'no' : j.eligibility === 'us_only' || j.eligibility === 'restricted')
           const hiddenUsOnly = applyFilterOn ? viewed.filter(notApplyable).length : 0
-          if (applyFilterOn) viewed = viewed.filter((j: any) => !notApplyable(j))
+          if (applyFilterOn) viewed = viewed.filter((j) => !notApplyable(j))
           const totalPages = Math.max(1, Math.ceil(viewed.length / JOBS_PER_PAGE))
           const page = Math.min(jobsPage, totalPages)
           const pageJobs = viewed.slice((page - 1) * JOBS_PER_PAGE, page * JOBS_PER_PAGE)
@@ -80,7 +81,7 @@ export function JobsTab({ jobsList, jobsLoading, jobsError, jobsSources, matchin
             </div>
 
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {pageJobs.map((job: any, i: number) => {
+              {pageJobs.map((job, i) => {
                 const idx = (page - 1) * JOBS_PER_PAGE + i
                 const open = expandedJob === idx
                 return (
@@ -90,7 +91,7 @@ export function JobsTab({ jobsList, jobsLoading, jobsError, jobsSources, matchin
                   {typeof job.score === 'number' && <ScoreBadge score={job.score} reason={job.reason} />}
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                     <EligibilityBadge aiEligible={job.aiEligible} aiEligReason={job.aiEligReason} eligibility={job.eligibility} />
-                    {[job.remoteType, job.location, job.salaryText].filter(Boolean).map((tag: any, k: number) => (
+                    {[job.remoteType, job.location, job.salaryText].filter(Boolean).map((tag, k) => (
                       <span key={k} style={{ fontSize: 11, padding: '3px 9px', borderRadius: 999, background: 'rgba(0,0,0,0.06)', color: '#334155' }}>{tag}</span>
                     ))}
                   </div>

@@ -1,6 +1,6 @@
 'use client'
 import { useState, useEffect, useRef } from 'react'
-import { AppState, UserProfile, Job, Education, Certification, Language, GeneratedCV, CVData } from '@/lib/types'
+import { AppState, UserProfile, Job, Education, Certification, Language, GeneratedCV, CVData, JobListing } from '@/lib/types'
 import { loadState, saveState, calcProfileStrength, buildProfileText, uid, defaultProfile, defaultState } from '@/lib/state'
 import { renderCV } from '@/lib/templates'
 import { resolveTemplateId } from '@/lib/export'
@@ -30,7 +30,7 @@ export default function App() {
   const [jobRole, setJobRole] = useState('')
   const [fetchingUrl, setFetchingUrl] = useState(false)
   // --- Jobs tab state (job discovery) ---
-  const [jobsList, setJobsList] = useState<any[]>([])
+  const [jobsList, setJobsList] = useState<JobListing[]>([])
   const [jobsLoading, setJobsLoading] = useState(false)
   const [jobsError, setJobsError] = useState('')
   const [jobsPage, setJobsPage] = useState(1)
@@ -56,7 +56,7 @@ export default function App() {
       if (r) setJobStatusMap(JSON.parse(r))
     } catch { /* ignore */ }
   }, [])
-  function markJob(job: any, status: 'saved' | 'applied' | 'hidden') {
+  function markJob(job: JobListing, status: 'saved' | 'applied' | 'hidden') {
     const key = String(job.url || job.title || '')
     setJobStatusMap((prev) => {
       const next = { ...prev }
@@ -68,8 +68,8 @@ export default function App() {
   }
   // Export the Saved jobs as a jobs.json for the local Apply Assistant.
   function exportApplyList() {
-    const saved = jobsList.filter((j: any) => jobStatusMap[String(j.url || j.title || '')] === 'saved')
-    const list = (saved.length ? saved : jobsList).map((j: any) => ({ title: j.title, url: j.url }))
+    const saved = jobsList.filter((j) => jobStatusMap[String(j.url || j.title || '')] === 'saved')
+    const list = (saved.length ? saved : jobsList).map((j) => ({ title: j.title, url: j.url }))
     if (!list.length) return
     const blob = new Blob([JSON.stringify(list, null, 2)], { type: 'application/json' })
     const a = document.createElement('a')
@@ -78,7 +78,7 @@ export default function App() {
     a.click()
     setTimeout(() => URL.revokeObjectURL(a.href), 1000)
   }
-  function salaryToNumber(txt: any): number | null {
+  function salaryToNumber(txt: unknown): number | null {
     if (!txt) return null
     const nums = String(txt).replace(/[,.]/g, '').match(/\d{3,}/g)
     if (!nums || !nums.length) return null
@@ -96,14 +96,14 @@ export default function App() {
       const data = await res.json()
       if (!data.success) { setJobsError(data.error || 'Failed to load jobs'); return }
       setJobsSources(data.sources || 0)
-      let list: any[] = data.jobs || []
+      let list: JobListing[] = data.jobs || []
       const zone = (prefs.zone || '').trim().toLowerCase()
       // Tokenize role terms into individual words (len >= 3) so a job matches
       // on any meaningful word — "QA tester" still catches "Quality Assurance
       // Tester" via "tester" — instead of needing the exact phrase.
       const kws = (prefs.keywords || '').split(/[,\s]+/).map((k: string) => k.trim().toLowerCase()).filter((k: string) => k.length >= 3)
       const minSal = Number(prefs.minSalary) || 0
-      list = list.filter((j: any) => {
+      list = list.filter((j) => {
         if (zone && !String(j.location || '').toLowerCase().includes(zone)) return false
         if (kws.length) {
           const hay = (String(j.title) + ' ' + String(j.company) + ' ' + String(j.description)).toLowerCase()
@@ -116,10 +116,10 @@ export default function App() {
       // Worldwide first, unknown next, US-authorization-required last. Stable
       // sort keeps newest-first order within each group.
       const rank: Record<string, number> = { latam: 0, worldwide: 1, unknown: 2, us_only: 3, restricted: 4 }
-      list.sort((a: any, b: any) => (rank[a.eligibility] ?? 2) - (rank[b.eligibility] ?? 2))
+      list.sort((a, b) => (rank[a.eligibility ?? ''] ?? 2) - (rank[b.eligibility ?? ''] ?? 2))
       setJobsList(list); setJobsPage(1)
-    } catch (e: any) {
-      setJobsError(e?.message || 'Failed to load jobs')
+    } catch (e) {
+      setJobsError(e instanceof Error ? e.message : 'Failed to load jobs')
     } finally {
       setJobsLoading(false)
     }
@@ -170,36 +170,36 @@ export default function App() {
       // Score EVERY job, not just the first 30: the API handles 30 per call, so
       // we batch the whole list into parallel chunks and merge the results.
       const CHUNK = 30
-      const chunks: any[][] = []
+      const chunks: JobListing[][] = []
       for (let ci = 0; ci < jobsList.length && chunks.length < 10; ci += CHUNK) chunks.push(jobsList.slice(ci, ci + CHUNK))
       const chunkResults = await Promise.all(chunks.map(async (chunk, ci) => {
         try {
           const res = await fetch('/api/match', {
             method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ profileText, jobs: chunk.map((j: any) => ({ title: j.title, company: j.company, description: j.description, location: j.location })) }),
+            body: JSON.stringify({ profileText, jobs: chunk.map((j) => ({ title: j.title, company: j.company, description: j.description, location: j.location })) }),
           })
           const d = await res.json()
           if (d.success && Array.isArray(d.scores)) return d.scores.map((s: any) => ({ ...s, i: Number(s.i) + ci * CHUNK }))
         } catch { /* skip failed chunk */ }
         return []
       }))
-      const allScores = chunkResults.reduce((acc: any[], r: any[]) => acc.concat(r), [])
+      const allScores = chunkResults.flat()
       const data = { success: allScores.length > 0, scores: allScores, error: allScores.length ? '' : 'Matching failed' }
       if (data.success && Array.isArray(data.scores)) {
         const byIdx = new Map<number, any>(data.scores.map((s: any) => [Number(s.i), s] as [number, any]))
-        const scored = jobsList.map((j: any, i: number) => {
+        const scored = jobsList.map((j, i) => {
           const s = byIdx.get(i)
           const elig = s && s.eligible ? String(s.eligible).toLowerCase() : undefined
           return { ...j, score: s && typeof s.score === 'number' ? s.score : null, reason: s && s.reason ? String(s.reason) : '', aiEligible: elig, aiEligReason: s && s.eligReason ? String(s.eligReason) : '' }
         })
-        const erank = (e: any) => (e === 'no' ? 1 : 0) // push "can't apply" to the bottom
-        scored.sort((a: any, b: any) => erank(a.aiEligible) - erank(b.aiEligible) || ((b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score)))
+        const erank = (e: string | undefined) => (e === 'no' ? 1 : 0) // push "can't apply" to the bottom
+        scored.sort((a, b) => erank(a.aiEligible) - erank(b.aiEligible) || ((b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score)))
         setJobsList(scored); setJobsPage(1); setExpandedJob(null)
       } else {
         setJobsError(data.error || 'Matching failed')
       }
-    } catch (e: any) {
-      setJobsError(e?.message || 'Matching failed')
+    } catch (e) {
+      setJobsError(e instanceof Error ? e.message : 'Matching failed')
     } finally {
       setMatching(false)
     }

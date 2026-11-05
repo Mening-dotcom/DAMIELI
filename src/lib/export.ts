@@ -9,7 +9,7 @@ export const resolveTemplateId = (value?: string) => {
 }
 
 // ─── PDF export that stays readable and reflects the chosen CV style ─────
-export async function downloadPDF(profile: any, cvData: any, role: string, previewNode?: HTMLDivElement | null, templateId = 'modern') {
+export async function downloadPDF(profile: UserProfile, cvData: CVData, role: string, previewNode?: HTMLDivElement | null, templateId = 'modern') {
   try {
     const { jsPDF } = await import('jspdf')
     const normalizedTemplateId = resolveTemplateId(templateId)
@@ -99,7 +99,7 @@ export async function downloadPDF(profile: any, cvData: any, role: string, previ
 
     if (cvData?.experience && Array.isArray(cvData.experience)) {
       section('Experience', isAts)
-      cvData.experience.forEach((exp: any) => {
+      cvData.experience.forEach((exp) => {
         if (!exp) return
         ensureSpace(12)
 
@@ -131,7 +131,7 @@ export async function downloadPDF(profile: any, cvData: any, role: string, previ
 
     if (cvData?.education && Array.isArray(cvData.education)) {
       section('Education', isAts)
-      cvData.education.forEach((e: any) => {
+      cvData.education.forEach((e) => {
         if (!e) return
         ensureSpace(10)
         doc.setFontSize(9.2)

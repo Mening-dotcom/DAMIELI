@@ -87,6 +87,25 @@ export interface CVEducation {
   note?: string
 }
 
+// A job as shown in the Jobs tab: a normalized listing from the aggregator
+// plus the AI-match fields added by Smart match.
+export interface JobListing {
+  source: string
+  title: string
+  company: string
+  description: string
+  url: string
+  location?: string
+  remoteType?: string
+  eligibility?: string
+  salaryText?: string | null
+  postedAt?: string | null
+  score?: number | null
+  reason?: string
+  aiEligible?: string
+  aiEligReason?: string
+}
+
 export interface AppState {
   profile: UserProfile
   history: GeneratedCV[]
