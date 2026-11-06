@@ -9,6 +9,26 @@ export const runtime = 'nodejs'
 const ADMIN_EMAIL = (process.env.ADMIN_EMAIL || 'menabravo.steven@gmail.com').toLowerCase()
 
 export async function GET(req: NextRequest) {
+  // Dev-only preview so the page can be styled without a real login.
+  // NODE_ENV is 'production' on Vercel, so this branch cannot run there.
+  if (process.env.NODE_ENV === 'development' && req.nextUrl.searchParams.get('demo') === '1') {
+    return NextResponse.json({
+      success: true,
+      generatedAt: new Date().toISOString(),
+      users: [
+        { email: 'menabravo.steven@gmail.com', createdAt: '2026-09-02T10:00:00Z', cvsOnServer: 2, name: 'Steven Mena', location: 'San José, CR', jobs: 3, skills: 12, cvsGenerated: 24, jobsAnalyzed: 310, timeSaved: 1080 },
+        { email: 'nicole@example.com', createdAt: '2026-09-20T15:30:00Z', cvsOnServer: 1, name: 'Nicole', location: 'USA', jobs: 1, skills: 4, cvsGenerated: 6, jobsAnalyzed: 45, timeSaved: 270 },
+        { email: 'amigo@example.com', createdAt: '2026-10-14T08:12:00Z', cvsOnServer: 0, name: '', location: '', jobs: 0, skills: 0, cvsGenerated: 0, jobsAnalyzed: 0, timeSaved: 0 },
+        { email: 'test@example.com', createdAt: '2026-11-04T22:45:00Z', cvsOnServer: 0, name: '', location: '', jobs: 0, skills: 0, cvsGenerated: 0, jobsAnalyzed: 0, timeSaved: 0 },
+      ],
+      recentCVs: [
+        { when: '11/5/2026, 9:12 PM', user: 'menabravo.steven@gmail.com', role: 'IT Support Specialist', company: 'Remote Co', atsScore: 88 },
+        { when: '11/4/2026, 2:40 PM', user: 'menabravo.steven@gmail.com', role: 'Bilingual Interpreter', company: 'LangCorp', atsScore: 91 },
+        { when: '10/29/2026, 11:02 AM', user: 'nicole@example.com', role: 'Customer Success', company: 'SaaSly', atsScore: 79 },
+      ],
+      totals: { users: 4, cvsOnServer: 3 },
+    })
+  }
   const userId = getUserIdFromRequest(req)
   if (!userId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   const user = await findUserById(userId)
