@@ -140,6 +140,26 @@ export async function getAppState(userId: string) {
   }
 }
 
+// ── Admin (owner-only) aggregates — used by /api/admin/stats. ─────────
+// Never select passwordHash here: these rows travel to the browser.
+export async function adminListUsers(): Promise<Array<{ id: string; email: string; createdAt: string }>> {
+  const { data, error } = await db().from('users').select('id,email,createdAt').order('createdAt', { ascending: false })
+  if (error) { console.error('adminListUsers error', error); return [] }
+  return data || []
+}
+
+export async function adminListStates(): Promise<Array<{ userId: string; profile: unknown; stats: unknown }>> {
+  const { data, error } = await db().from('app_state').select('userId,profile,stats')
+  if (error) { console.error('adminListStates error', error); return [] }
+  return data || []
+}
+
+export async function adminListHistory(): Promise<Array<{ id: string; userId: string; role: string; company: string; generatedAt: string; atsScore: number }>> {
+  const { data, error } = await db().from('history').select('id,userId,role,company,generatedAt,atsScore').order('generatedAt', { ascending: false }).limit(100)
+  if (error) { console.error('adminListHistory error', error); return [] }
+  return data || []
+}
+
 export async function getHistory(userId: string) {
   try {
     const { data, error } = await db().from('history').select('*').eq('userId', userId).order('generatedAt', { ascending: false })
