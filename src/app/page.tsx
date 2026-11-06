@@ -36,6 +36,7 @@ export default function App() {
   const [jobsPage, setJobsPage] = useState(1)
   const [expandedJob, setExpandedJob] = useState<number | null>(null)
   const [matching, setMatching] = useState(false)
+  const [matchProgress, setMatchProgress] = useState('')
   const [rolesLoading, setRolesLoading] = useState(false)
   const [jobsSources, setJobsSources] = useState(0)
   // Remote-friendly starter roles — replaced automatically from the user's
@@ -160,48 +161,59 @@ export default function App() {
   // (transferable skills), not keyword overlap. Runs only when you click.
   async function scoreMatches() {
     if (!jobsList.length || matching) return
-    setMatching(true); setJobsError('')
+    setMatching(true); setJobsError(''); setMatchProgress('')
     try {
       const profileText = buildProfileText(state.profile)
       if (!profileText || profileText.trim().length < 20) {
         setJobsError('Add your experience in the Profile tab first — matching needs your background.')
         return
       }
-      // Score EVERY job, not just the first 30: the API handles 30 per call, so
-      // we batch the whole list into parallel chunks and merge the results.
+      // Only score jobs the user can act on: skip ones they hid and — when the
+      // Costa-Rica filter is on — ones already known to be country-restricted.
+      // Fewer batches = faster matching and fewer Claude calls.
+      const candidates = jobsList.filter((j) => {
+        if (jobStatusMap[String(j.url || j.title || '')] === 'hidden') return false
+        if (searchPrefs.onlyApplyable && (j.eligibility === 'us_only' || j.eligibility === 'restricted')) return false
+        return true
+      })
       const CHUNK = 30
       const chunks: JobListing[][] = []
-      for (let ci = 0; ci < jobsList.length && chunks.length < 10; ci += CHUNK) chunks.push(jobsList.slice(ci, ci + CHUNK))
-      const chunkResults = await Promise.all(chunks.map(async (chunk, ci) => {
+      for (let ci = 0; ci < candidates.length && chunks.length < 10; ci += CHUNK) chunks.push(candidates.slice(ci, ci + CHUNK))
+      if (!chunks.length) { setJobsError('No applyable jobs to match — hit Refresh first.'); return }
+      let done = 0
+      setMatchProgress(`0/${chunks.length}`)
+      await Promise.all(chunks.map(async (chunk) => {
         try {
           const res = await fetch('/api/match', {
             method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ profileText, jobs: chunk.map((j) => ({ title: j.title, company: j.company, description: j.description, location: j.location })) }),
           })
           const d = await res.json()
-          if (d.success && Array.isArray(d.scores)) return d.scores.map((s: any) => ({ ...s, i: Number(s.i) + ci * CHUNK }))
+          if (d.success && Array.isArray(d.scores)) {
+            // Merge this batch's scores the moment they arrive (keyed by URL so
+            // it's safe while other batches are still in flight) — the user sees
+            // match badges appear live instead of waiting for the slowest batch.
+            const byUrl = new Map<string, any>()
+            d.scores.forEach((s: any) => { const j = chunk[Number(s.i)]; if (j) byUrl.set(j.url, s) })
+            setJobsList((prev) => prev.map((j) => {
+              const s = byUrl.get(j.url)
+              if (!s) return j
+              const elig = s.eligible ? String(s.eligible).toLowerCase() : undefined
+              return { ...j, score: typeof s.score === 'number' ? s.score : null, reason: s.reason ? String(s.reason) : '', aiEligible: elig, aiEligReason: s.eligReason ? String(s.eligReason) : '' }
+            }))
+          }
         } catch { /* skip failed chunk */ }
-        return []
+        done += 1
+        setMatchProgress(`${done}/${chunks.length}`)
       }))
-      const allScores = chunkResults.flat()
-      const data = { success: allScores.length > 0, scores: allScores, error: allScores.length ? '' : 'Matching failed' }
-      if (data.success && Array.isArray(data.scores)) {
-        const byIdx = new Map<number, any>(data.scores.map((s: any) => [Number(s.i), s] as [number, any]))
-        const scored = jobsList.map((j, i) => {
-          const s = byIdx.get(i)
-          const elig = s && s.eligible ? String(s.eligible).toLowerCase() : undefined
-          return { ...j, score: s && typeof s.score === 'number' ? s.score : null, reason: s && s.reason ? String(s.reason) : '', aiEligible: elig, aiEligReason: s && s.eligReason ? String(s.eligReason) : '' }
-        })
-        const erank = (e: string | undefined) => (e === 'no' ? 1 : 0) // push "can't apply" to the bottom
-        scored.sort((a, b) => erank(a.aiEligible) - erank(b.aiEligible) || ((b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score)))
-        setJobsList(scored); setJobsPage(1); setExpandedJob(null)
-      } else {
-        setJobsError(data.error || 'Matching failed')
-      }
+      // Final ranking once every batch is in: applyable first, best fit first.
+      const erank = (e: string | undefined) => (e === 'no' ? 1 : 0)
+      setJobsList((prev) => [...prev].sort((a, b) => erank(a.aiEligible) - erank(b.aiEligible) || ((b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score))))
+      setJobsPage(1); setExpandedJob(null)
     } catch (e) {
       setJobsError(e instanceof Error ? e.message : 'Matching failed')
     } finally {
-      setMatching(false)
+      setMatching(false); setMatchProgress('')
     }
   }
   const [skillInput, setSkillInput] = useState('')
@@ -582,7 +594,7 @@ export default function App() {
         {/* ── HISTORY ── */}
         {/* ── JOBS ── */}
         {screen === 'jobs' && (
-          <JobsTab jobsList={jobsList} jobsLoading={jobsLoading} jobsError={jobsError} jobsSources={jobsSources} matching={matching} jobsPage={jobsPage} setJobsPage={setJobsPage} expandedJob={expandedJob} setExpandedJob={setExpandedJob} jobView={jobView} setJobView={setJobView} jobStatusMap={jobStatusMap} markJob={markJob} searchPrefs={searchPrefs} setSearchPrefs={setSearchPrefs} loadJobs={() => loadJobs()} scoreMatches={scoreMatches} exportApplyList={exportApplyList} onCreateCV={(job) => { setJobText(job.description || ''); setJobCompany(job.company || ''); setJobRole(job.title || ''); setJobUrl(job.url || ''); setScreen('generate') }} />
+          <JobsTab jobsList={jobsList} jobsLoading={jobsLoading} jobsError={jobsError} jobsSources={jobsSources} matching={matching} matchProgress={matchProgress} jobsPage={jobsPage} setJobsPage={setJobsPage} expandedJob={expandedJob} setExpandedJob={setExpandedJob} jobView={jobView} setJobView={setJobView} jobStatusMap={jobStatusMap} markJob={markJob} searchPrefs={searchPrefs} setSearchPrefs={setSearchPrefs} loadJobs={() => loadJobs()} scoreMatches={scoreMatches} exportApplyList={exportApplyList} onCreateCV={(job) => { setJobText(job.description || ''); setJobCompany(job.company || ''); setJobRole(job.title || ''); setJobUrl(job.url || ''); setScreen('generate') }} />
         )}
 
         {/* ── SETTINGS ── */}

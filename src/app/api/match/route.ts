@@ -22,7 +22,7 @@ export async function POST(req: NextRequest) {
     }
 
     const list = jobs.slice(0, 30).map((j: any, i: number) =>
-      `#${i}\nTitle: ${String(j.title || '').slice(0, 120)}\nCompany: ${String(j.company || '').slice(0, 80)}\nLocation: ${String(j.location || 'n/a').slice(0, 80)}\nDescription: ${String(j.description || '').replace(/\s+/g, ' ').slice(0, 1300)}`,
+      `#${i}\nTitle: ${String(j.title || '').slice(0, 120)}\nCompany: ${String(j.company || '').slice(0, 80)}\nLocation: ${String(j.location || 'n/a').slice(0, 80)}\nDescription: ${String(j.description || '').replace(/\s+/g, ' ').slice(0, 800)}`,
     ).join('\n\n')
 
     const prompt = `You are an experienced recruiter helping a candidate based in COSTA RICA (Latin America). For EACH job do two things.
@@ -48,7 +48,7 @@ ${list}
 
 Return ONLY a JSON array, no markdown, no extra text:
 [{"i":0,"score":82,"reason":"Support + bilingual transfers directly","eligible":"yes","eligReason":"Remote worldwide, no visa needed"}]
-"reason" ≤ 12 words. "eligible" is exactly "yes", "no", or "maybe". "eligReason" ≤ 10 words.`
+"reason" ≤ 8 words. "eligible" is exactly "yes", "no", or "maybe". "eligReason" ≤ 8 words.`
 
     const msg = await client.messages.create({
       model: 'claude-haiku-4-5-20251001',

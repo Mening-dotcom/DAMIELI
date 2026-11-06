@@ -7,12 +7,13 @@ import { JobListing } from '@/lib/types'
 
 const JOBS_PER_PAGE = 8
 
-export function JobsTab({ jobsList, jobsLoading, jobsError, jobsSources, matching, jobsPage, setJobsPage, expandedJob, setExpandedJob, jobView, setJobView, jobStatusMap, markJob, searchPrefs, setSearchPrefs, loadJobs, scoreMatches, exportApplyList, onCreateCV }: {
+export function JobsTab({ jobsList, jobsLoading, jobsError, jobsSources, matching, matchProgress, jobsPage, setJobsPage, expandedJob, setExpandedJob, jobView, setJobView, jobStatusMap, markJob, searchPrefs, setSearchPrefs, loadJobs, scoreMatches, exportApplyList, onCreateCV }: {
   jobsList: JobListing[]
   jobsLoading: boolean
   jobsError: string
   jobsSources: number
   matching: boolean
+  matchProgress: string
   jobsPage: number
   setJobsPage: (n: number) => void
   expandedJob: number | null
@@ -59,9 +60,9 @@ export function JobsTab({ jobsList, jobsLoading, jobsError, jobsSources, matchin
                 </p>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                <button onClick={scoreMatches} disabled={matching || !jobsList.length} style={{ ...primaryBtnStyle, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', boxShadow: 'none' }}>{matching ? 'Matching…' : '⭐ Smart match'}</button>
-                <button onClick={() => loadJobs()} disabled={jobsLoading} style={primaryBtnStyle}>↻ Refresh</button>
-                <button onClick={exportApplyList} disabled={!jobsList.length} title="Download your Saved jobs as jobs.json for the Apply Assistant" style={{ ...primaryBtnStyle, background: '#fff', color: '#4f46e5', border: '1px solid #c7d2fe', boxShadow: 'none' }}>⤓ Export apply list</button>
+                <button onClick={scoreMatches} disabled={matching || jobsLoading || !jobsList.length} style={{ ...primaryBtnStyle, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', boxShadow: 'none', opacity: matching || jobsLoading || !jobsList.length ? 0.6 : 1 }}>{matching ? `⏳ Matching… ${matchProgress}` : '⭐ Smart match'}</button>
+                <button onClick={() => loadJobs()} disabled={jobsLoading || matching} style={{ ...primaryBtnStyle, opacity: jobsLoading || matching ? 0.6 : 1 }}>↻ Refresh</button>
+                <button onClick={exportApplyList} disabled={!jobsList.length || matching} title="Download your Saved jobs as jobs.json for the Apply Assistant" style={{ ...primaryBtnStyle, background: '#fff', color: '#4f46e5', border: '1px solid #c7d2fe', boxShadow: 'none', opacity: !jobsList.length || matching ? 0.6 : 1 }}>⤓ Export apply list</button>
               </div>
             </div>
 
@@ -80,6 +81,12 @@ export function JobsTab({ jobsList, jobsLoading, jobsError, jobsSources, matchin
               )}
             </div>
 
+            {matching && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#eef2ff', border: '1px solid #c7d2fe', borderRadius: 12, padding: '12px 16px', marginBottom: 12, fontSize: 13, color: '#4f46e5', fontWeight: 600 }}>
+                <span style={{ width: 14, height: 14, border: '2px solid #c7d2fe', borderTopColor: '#4f46e5', borderRadius: '50%', animation: 'spin 0.7s linear infinite', display: 'inline-block', flexShrink: 0 }} />
+                Smart match running — batch {matchProgress}. Scores appear on each job as they finish; the list re-sorts by best fit when done.
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {pageJobs.map((job, i) => {
                 const idx = (page - 1) * JOBS_PER_PAGE + i
