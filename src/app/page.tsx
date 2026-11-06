@@ -176,9 +176,12 @@ export default function App() {
         if (searchPrefs.onlyApplyable && (j.eligibility === 'us_only' || j.eligibility === 'restricted')) return false
         return true
       })
-      const CHUNK = 30
+      // Small batches of 15, all in parallel: each Claude call writes half the
+      // output of a 30-job batch, so every batch — and the whole match — lands
+      // roughly twice as fast. Wall time = slowest single batch.
+      const CHUNK = 15
       const chunks: JobListing[][] = []
-      for (let ci = 0; ci < candidates.length && chunks.length < 10; ci += CHUNK) chunks.push(candidates.slice(ci, ci + CHUNK))
+      for (let ci = 0; ci < candidates.length && chunks.length < 27; ci += CHUNK) chunks.push(candidates.slice(ci, ci + CHUNK))
       if (!chunks.length) { setJobsError('No applyable jobs to match — hit Refresh first.'); return }
       let done = 0
       setMatchProgress(`0/${chunks.length}`)

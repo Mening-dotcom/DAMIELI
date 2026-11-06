@@ -11,7 +11,7 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 // Semantic fit scoring in ONE batched Claude call. Scores by TRANSFERABLE fit,
 // not keyword overlap — the whole point is that fit is deeper than exact words.
 export async function POST(req: NextRequest) {
-  const limit = rateLimit(req, { windowMs: 60_000, max: 15 }) // batched scoring sends several chunks per click
+  const limit = rateLimit(req, { windowMs: 60_000, max: 40 }) // one click fires up to 27 small parallel batches
   if (!limit.allowed) {
     return NextResponse.json({ error: 'Rate limit exceeded. Try again later.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter || 60) } })
   }
