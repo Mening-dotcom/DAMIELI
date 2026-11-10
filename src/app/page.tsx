@@ -4,6 +4,7 @@ import { AppState, UserProfile, Job, Education, Certification, Language, Generat
 import { loadState, saveState, calcProfileStrength, buildProfileText, uid, defaultProfile, defaultState } from '@/lib/state'
 import { renderCV } from '@/lib/templates'
 import { resolveTemplateId } from '@/lib/export'
+import { spanishSynonyms } from '@/lib/sources/synonyms'
 import { HomeTab } from '@/components/HomeTab'
 import { HistoryTab } from '@/components/HistoryTab'
 import { SettingsTab } from '@/components/SettingsTab'
@@ -79,6 +80,40 @@ export default function App() {
     a.click()
     setTimeout(() => URL.revokeObjectURL(a.href), 1000)
   }
+  // Import the jobs.json written by the local Apply Assistant (Computrabajo CR
+  // jobs that Vercel's IP can't fetch) so they join the pool and get AI-scored.
+  function importCrJobs(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const reader = new FileReader()
+    reader.onload = (ev) => {
+      try {
+        const arr = JSON.parse(String(ev.target?.result || '[]'))
+        if (!Array.isArray(arr)) throw new Error('not a list')
+        const existing = new Set(jobsList.map((j) => j.url))
+        const imported: JobListing[] = arr
+          .filter((r: any) => r && r.title && r.url && !existing.has(String(r.url)))
+          .map((r: any) => ({
+            source: 'computrabajo',
+            title: String(r.title),
+            company: String(r.company || 'See listing'),
+            description: String(r.description || ''),
+            url: String(r.url),
+            location: String(r.location || 'Costa Rica'),
+            remoteType: 'unknown',
+            eligibility: 'latam',
+            salaryText: r.salary ? String(r.salary) : null,
+            postedAt: null,
+          }))
+        if (imported.length) { setJobsList((prev) => [...imported, ...prev]); setJobsPage(1); setJobView('all'); setJobsError('') }
+        else setJobsError('No new jobs in that file (all already in the list).')
+      } catch {
+        setJobsError('Could not read that file — expected the jobs.json from the Apply Assistant.')
+      }
+    }
+    reader.readAsText(file)
+    e.target.value = ''
+  }
   function salaryToNumber(txt: unknown): number | null {
     if (!txt) return null
     const nums = String(txt).replace(/[,.]/g, '').match(/\d{3,}/g)
@@ -101,8 +136,12 @@ export default function App() {
       const zone = (prefs.zone || '').trim().toLowerCase()
       // Tokenize role terms into individual words (len >= 3) so a job matches
       // on any meaningful word — "QA tester" still catches "Quality Assurance
-      // Tester" via "tester" — instead of needing the exact phrase.
-      const kws = (prefs.keywords || '').split(/[,\s]+/).map((k: string) => k.trim().toLowerCase()).filter((k: string) => k.length >= 3)
+      // Tester" via "tester" — instead of needing the exact phrase. Spanish
+      // synonym words are included so LATAM-board jobs ("Soporte Técnico")
+      // survive the filter for English search terms.
+      const phrases = (prefs.keywords || '').split(',').map((s: string) => s.trim()).filter(Boolean)
+      const esWords = spanishSynonyms(phrases).flatMap((s) => s.split(/\s+/))
+      const kws = [...(prefs.keywords || '').split(/[,\s]+/), ...esWords].map((k: string) => k.trim().toLowerCase()).filter((k: string) => k.length >= 3)
       const minSal = Number(prefs.minSalary) || 0
       list = list.filter((j) => {
         if (zone && !String(j.location || '').toLowerCase().includes(zone)) return false
@@ -597,7 +636,7 @@ export default function App() {
         {/* ── HISTORY ── */}
         {/* ── JOBS ── */}
         {screen === 'jobs' && (
-          <JobsTab jobsList={jobsList} jobsLoading={jobsLoading} jobsError={jobsError} jobsSources={jobsSources} matching={matching} matchProgress={matchProgress} jobsPage={jobsPage} setJobsPage={setJobsPage} expandedJob={expandedJob} setExpandedJob={setExpandedJob} jobView={jobView} setJobView={setJobView} jobStatusMap={jobStatusMap} markJob={markJob} searchPrefs={searchPrefs} setSearchPrefs={setSearchPrefs} loadJobs={() => loadJobs()} scoreMatches={scoreMatches} exportApplyList={exportApplyList} onCreateCV={(job) => { setJobText(job.description || ''); setJobCompany(job.company || ''); setJobRole(job.title || ''); setJobUrl(job.url || ''); setScreen('generate') }} />
+          <JobsTab jobsList={jobsList} jobsLoading={jobsLoading} jobsError={jobsError} jobsSources={jobsSources} matching={matching} matchProgress={matchProgress} jobsPage={jobsPage} setJobsPage={setJobsPage} expandedJob={expandedJob} setExpandedJob={setExpandedJob} jobView={jobView} setJobView={setJobView} jobStatusMap={jobStatusMap} markJob={markJob} searchPrefs={searchPrefs} setSearchPrefs={setSearchPrefs} loadJobs={() => loadJobs()} scoreMatches={scoreMatches} exportApplyList={exportApplyList} onImportJobs={importCrJobs} onCreateCV={(job) => { setJobText(job.description || ''); setJobCompany(job.company || ''); setJobRole(job.title || ''); setJobUrl(job.url || ''); setScreen('generate') }} />
         )}
 
         {/* ── SETTINGS ── */}

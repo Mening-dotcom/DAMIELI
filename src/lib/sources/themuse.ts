@@ -7,7 +7,9 @@ import { stripHtml } from './util'
 
 async function fetchPage(page: number): Promise<any[]> {
   try {
-    const res = await fetch(`https://www.themuse.com/api/public/jobs?page=${page}`, {
+    // location=Flexible / Remote keeps the feed to remote-friendly postings
+    // instead of US-onsite noise the CR filter would reject anyway.
+    const res = await fetch(`https://www.themuse.com/api/public/jobs?page=${page}&location=${encodeURIComponent('Flexible / Remote')}`, {
       headers: { 'User-Agent': 'DAMIELI personal job-search tool' },
       cache: 'no-store',
     })

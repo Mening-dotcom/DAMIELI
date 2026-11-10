@@ -12,6 +12,7 @@ import { fetchTheMuseJobs } from './themuse'
 import { fetchJSearchJobs } from './jsearch' // key-gated
 import { fetchAdzunaJobs } from './adzuna' // key-gated
 import { inferEligibility } from './util'
+import { spanishSynonyms } from './synonyms'
 
 // LATAM/local boards — their jobs are applyable for a Costa Rica resident even
 // when "onsite", so they bypass the remote-only modality filter.
@@ -61,9 +62,21 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
     const term = roleTerms[t]
     tasks.push({ name: `getonbrd:${term}`, run: () => fetchGetOnBoardJobs({ query: term, perPage: 50, pages: 3 }) })
   }
-  // Key-gated aggregators (LinkedIn/Indeed via JSearch, etc.). JSearch has a
-  // small free quota, so we send ONE combined query instead of one per term.
-  if (process.env.RAPIDAPI_KEY) tasks.push({ name: 'jsearch', run: () => fetchJSearchJobs({ query: roleTerms.slice(0, 3).join(' OR '), remote, seniority }) })
+  // LATAM boards list jobs in SPANISH — an English-only search misses them
+  // entirely ("IT support" finds nothing; "soporte técnico" is the real title).
+  // Query GetOnBoard again with the Spanish equivalents of the user's terms.
+  const esTerms = spanishSynonyms(roleTerms).slice(0, 6)
+  for (const es of esTerms) {
+    tasks.push({ name: `getonbrd:${es}`, run: () => fetchGetOnBoardJobs({ query: es, perPage: 50, pages: 2 }) })
+  }
+  // Key-gated aggregator (LinkedIn/Indeed/Glassdoor via JSearch). Small free
+  // quota → exactly TWO targeted calls per refresh: the user's top roles, and
+  // the same roles biased toward Costa Rica / LATAM inventory.
+  if (process.env.RAPIDAPI_KEY) {
+    const top = roleTerms.slice(0, 3).join(' OR ')
+    tasks.push({ name: 'jsearch', run: () => fetchJSearchJobs({ query: top, remote, seniority }) })
+    tasks.push({ name: 'jsearch:latam', run: () => fetchJSearchJobs({ query: `(${top}) costa rica OR latin america`, remote: true, seniority }) })
+  }
   if (process.env.ADZUNA_APP_ID && process.env.ADZUNA_APP_KEY) {
     for (let t = 0; t < Math.min(roleTerms.length, 3); t++) {
       const term = roleTerms[t]

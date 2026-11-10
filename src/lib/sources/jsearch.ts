@@ -12,7 +12,7 @@ export async function fetchJSearchJobs(opts: { query?: string; remote?: boolean;
   if (!key) return []
   const query = encodeURIComponent((opts.query || 'developer') + (opts.remote ? ' remote' : ''))
   const host = (process.env.RAPIDAPI_JSEARCH_HOST || 'jsearch.p.rapidapi.com').trim()
-  const url = `https://${host}/search?query=${query}&page=1&num_pages=1`
+  const url = `https://${host}/search?query=${query}&page=1&num_pages=1&date_posted=month`
   try {
     const res = await fetch(url, {
       headers: {

@@ -7,7 +7,7 @@ import { JobListing } from '@/lib/types'
 
 const JOBS_PER_PAGE = 8
 
-export function JobsTab({ jobsList, jobsLoading, jobsError, jobsSources, matching, matchProgress, jobsPage, setJobsPage, expandedJob, setExpandedJob, jobView, setJobView, jobStatusMap, markJob, searchPrefs, setSearchPrefs, loadJobs, scoreMatches, exportApplyList, onCreateCV }: {
+export function JobsTab({ jobsList, jobsLoading, jobsError, jobsSources, matching, matchProgress, jobsPage, setJobsPage, expandedJob, setExpandedJob, jobView, setJobView, jobStatusMap, markJob, searchPrefs, setSearchPrefs, loadJobs, scoreMatches, exportApplyList, onImportJobs, onCreateCV }: {
   jobsList: JobListing[]
   jobsLoading: boolean
   jobsError: string
@@ -27,6 +27,7 @@ export function JobsTab({ jobsList, jobsLoading, jobsError, jobsSources, matchin
   loadJobs: () => void
   scoreMatches: () => void
   exportApplyList: () => void
+  onImportJobs: (e: React.ChangeEvent<HTMLInputElement>) => void
   onCreateCV: (job: JobListing) => void
 }) {
           const pagerBtn = (active: boolean): React.CSSProperties => ({ minWidth: 34, padding: '7px 10px', borderRadius: 8, border: '1px solid ' + (active ? '#4f46e5' : '#cbd5e1'), background: active ? '#4f46e5' : '#fff', color: active ? '#fff' : '#0f172a', fontSize: 12, fontWeight: 600, cursor: 'pointer' })
@@ -63,6 +64,10 @@ export function JobsTab({ jobsList, jobsLoading, jobsError, jobsSources, matchin
                 <button onClick={scoreMatches} disabled={matching || jobsLoading || !jobsList.length} style={{ ...primaryBtnStyle, background: 'linear-gradient(135deg,#6366f1,#8b5cf6)', color: '#fff', boxShadow: 'none', opacity: matching || jobsLoading || !jobsList.length ? 0.6 : 1 }}>{matching ? `⏳ Matching… ${matchProgress}` : '⭐ Smart match'}</button>
                 <button onClick={() => loadJobs()} disabled={jobsLoading || matching} style={{ ...primaryBtnStyle, opacity: jobsLoading || matching ? 0.6 : 1 }}>↻ Refresh</button>
                 <button onClick={exportApplyList} disabled={!jobsList.length || matching} title="Download your Saved jobs as jobs.json for the Apply Assistant" style={{ ...primaryBtnStyle, background: '#fff', color: '#4f46e5', border: '1px solid #c7d2fe', boxShadow: 'none', opacity: !jobsList.length || matching ? 0.6 : 1 }}>⤓ Export apply list</button>
+                <label title="Add the Costa-Rica jobs scraped by the local Apply Assistant (jobs.json) so they get AI-scored here" style={{ ...primaryBtnStyle, background: '#fff', color: '#15803d', border: '1px solid #bbf7d0', boxShadow: 'none', cursor: 'pointer', opacity: matching ? 0.6 : 1 }}>
+                  ⤒ Import CR jobs
+                  <input type="file" accept=".json,application/json" style={{ display: 'none' }} onChange={onImportJobs} disabled={matching} />
+                </label>
               </div>
             </div>
 

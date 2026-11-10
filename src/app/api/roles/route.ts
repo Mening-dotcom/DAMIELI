@@ -31,6 +31,7 @@ From the candidate profile below, output 10-12 SHORT job-title search terms to f
 - COVER EVERY DOMAIN in their background separately — e.g. if they have healthcare/medical + finance/credit/collections + tech + customer service experience, produce terms for EACH domain, not just one.
 - LANGUAGES ARE GOLD: if they speak 2+ languages you MUST include at least two language-leverage terms ("interpreter", "medical interpreter", "bilingual support", "localization", "translator") — these are among the best-paid remote roles from LATAM.
 - Prefer REMOTE-FRIENDLY roles the person can realistically GET given their real experience and transferable skills (e.g. credit-bureau experience → "collections specialist", "credit analyst", "accounts receivable", "billing specialist"; medical background → "medical biller", "medical records", "patient coordinator").
+- TECH STUDENTS/BACKGROUND: if they study or studied computer science/engineering, or list tech skills, you MUST include the realistic entry path: "technical support", "help desk", "IT support", "QA tester" — these are attainable NOW, unlike "software engineer".
 - Keep each term 1-3 words, lowercase, the way a title appears on a job board.
 - No seniority words like "senior". No company names. No duplicates.
 
