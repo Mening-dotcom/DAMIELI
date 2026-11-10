@@ -4,7 +4,6 @@
 import type { NormalizedJob } from './types'
 import { fetchMentorhoodJobs } from './mentorhood'
 import { fetchRemoteOkJobs } from './remoteok'
-import { fetchArbeitnowJobs } from './arbeitnow'
 import { fetchJobicyJobs } from './jobicy'
 import { fetchHimalayasJobs } from './himalayas'
 import { fetchGetOnBoardJobs } from './getonbrd'
@@ -30,7 +29,9 @@ function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   ])
 }
 
-const SENIOR = /\b(senior|sr|lead|principal|staff|director|head|vp|architect|manager|expert)\b/i
+// NOTE: 'manager' is deliberately NOT here — 'Community Manager' and 'Customer
+// Success Manager' are entry-level titles; including it hid them all at Junior.
+const SENIOR = /\b(senior|sr|lead|principal|staff|director|head|vp|architect|expert)\b/i
 const JUNIOR = /\b(junior|jr|entry|intern|trainee|associate|graduate|assistant)\b/i
 
 export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: NormalizedJob[]; sourceErrors: string[]; sources: number }> {
@@ -46,7 +47,6 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
   // Broad feeds (no search term) — fetched once, narrowed later by role keywords.
   const tasks: Task[] = [
     { name: 'mentorhood', run: () => fetchMentorhoodJobs({ locationType: filters.locationType as any, seniority: seniority as any }) },
-    { name: 'arbeitnow', run: () => fetchArbeitnowJobs() },
     { name: 'jobicy', run: () => fetchJobicyJobs({ count: 50 }) },
     // Jobicy LATAM feed: jobs explicitly open to Latin-America applicants.
     { name: 'jobicy:latam', run: () => fetchJobicyJobs({ count: 50, geo: 'latam' }) },
@@ -92,13 +92,23 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
   })
   const sources = okSources.size
 
-  // Drop junk + dedupe by title+company.
-  const seen = new Set<string>()
+  // Drop junk + dedupe. Primary key is the URL (unique per posting). A
+  // title+company key is used ONLY when the company name is real — GetOnBoard
+  // returns no company ('See listing'), and deduping on that deleted ~11% of
+  // its jobs whenever two companies posted the same title.
+  const seenUrl = new Set<string>()
+  const seenTitleCo = new Set<string>()
   const deduped = all.filter((j) => {
     if (!j.title || !j.url) return false
-    const key = (j.title + '|' + j.company).toLowerCase().replace(/\s+/g, ' ').trim()
-    if (seen.has(key)) return false
-    seen.add(key)
+    const url = j.url.trim()
+    if (seenUrl.has(url)) return false
+    seenUrl.add(url)
+    const company = (j.company || '').toLowerCase().replace(/\s+/g, ' ').trim()
+    if (company && company !== 'see listing' && company !== 'unknown') {
+      const key = j.title.toLowerCase().replace(/\s+/g, ' ').trim() + '|' + company
+      if (seenTitleCo.has(key)) return false // same job cross-posted on two boards
+      seenTitleCo.add(key)
+    }
     return true
   })
 

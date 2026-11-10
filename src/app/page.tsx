@@ -113,6 +113,26 @@ export default function App() {
     reader.readAsText(file)
     e.target.value = ''
   }
+  // ── Smart-match score cache ──
+  // Verdicts are cached per job URL so they survive Refresh and aren't re-paid
+  // every day; only NEW jobs get sent to the AI.
+  type CachedScore = { score: number | null; reason: string; aiEligible?: string; aiEligReason: string; at: number }
+  const MATCH_CACHE_KEY = 'damieli_match_cache'
+  const MATCH_CACHE_MAX = 800
+  const MATCH_CACHE_TTL = 7 * 864e5 // re-judge after a week (postings change)
+  function readMatchCache(): Record<string, CachedScore> {
+    try { return JSON.parse(window.localStorage.getItem(MATCH_CACHE_KEY) || '{}') } catch { return {} }
+  }
+  function writeMatchCache(entries: Record<string, CachedScore>) {
+    try {
+      const keys = Object.keys(entries)
+      if (keys.length > MATCH_CACHE_MAX) {
+        keys.sort((a, b) => (entries[a].at || 0) - (entries[b].at || 0))
+        for (const k of keys.slice(0, keys.length - MATCH_CACHE_MAX)) delete entries[k]
+      }
+      window.localStorage.setItem(MATCH_CACHE_KEY, JSON.stringify(entries))
+    } catch { /* storage full/blocked — cache is best-effort */ }
+  }
   function salaryToNumber(txt: unknown): number | null {
     if (!txt) return null
     const nums = String(txt).replace(/[,.]/g, '').match(/\d{3,}/g)
@@ -149,6 +169,12 @@ export default function App() {
       // sort keeps newest-first order within each group.
       const rank: Record<string, number> = { latam: 0, worldwide: 1, unknown: 2, us_only: 3, restricted: 4 }
       list.sort((a, b) => (rank[a.eligibility ?? ''] ?? 2) - (rank[b.eligibility ?? ''] ?? 2))
+      // Re-apply cached AI verdicts so scores survive a refresh.
+      const cache = readMatchCache()
+      list = list.map((j) => {
+        const c = cache[j.url]
+        return c && Date.now() - c.at < MATCH_CACHE_TTL ? { ...j, score: c.score, reason: c.reason, aiEligible: c.aiEligible, aiEligReason: c.aiEligReason } : j
+      })
       setJobsList(list); setJobsPage(1)
     } catch (e) {
       setJobsError(e instanceof Error ? e.message : 'Failed to load jobs')
@@ -199,51 +225,100 @@ export default function App() {
         setJobsError('Add your experience in the Profile tab first — matching needs your background.')
         return
       }
-      // Only score jobs the user can act on: skip ones they hid and — when the
-      // Costa-Rica filter is on — ones already known to be country-restricted.
-      // Fewer batches = faster matching and fewer Claude calls.
+      // Only score jobs the user can act on: skip hidden ones, known-restricted
+      // ones (when the CR filter is on), and jobs with a FRESH CACHED verdict —
+      // those already carry their scores from load time; don't re-pay for them.
+      const cache = readMatchCache()
+      const cacheFresh = (u: string) => { const c = cache[u]; return !!c && Date.now() - c.at < MATCH_CACHE_TTL }
       const candidates = jobsList.filter((j) => {
         if (jobStatusMap[String(j.url || j.title || '')] === 'hidden') return false
         if (searchPrefs.onlyApplyable && (j.eligibility === 'us_only' || j.eligibility === 'restricted')) return false
+        if (cacheFresh(j.url)) return false
         return true
       })
-      // Small batches of 15, all in parallel: each Claude call writes half the
-      // output of a 30-job batch, so every batch — and the whole match — lands
-      // roughly twice as fast. Wall time = slowest single batch.
+      // Small parallel batches of 15: wall time = slowest single batch.
       const CHUNK = 15
       const chunks: JobListing[][] = []
       for (let ci = 0; ci < candidates.length && chunks.length < 27; ci += CHUNK) chunks.push(candidates.slice(ci, ci + CHUNK))
-      if (!chunks.length) { setJobsError('No applyable jobs to match — hit Refresh first.'); return }
+      let failed = 0
       let done = 0
-      setMatchProgress(`0/${chunks.length}`)
+      if (chunks.length) setMatchProgress(`0/${chunks.length}`)
+
+      // Local mirror of every merged verdict — React state updates are async,
+      // so the finals round reads from here, not from stale jobsList.
+      const localScores = new Map<string, { score: number | null; reason: string; aiEligible?: string; aiEligReason: string }>()
+
+      const mergeScores = (chunk: JobListing[], scores: any[]) => {
+        const byUrl = new Map<string, any>()
+        scores.forEach((s: any) => { const j = chunk[Number(s.i)]; if (j) byUrl.set(j.url, s) })
+        byUrl.forEach((s, url) => {
+          const v = { score: typeof s.score === 'number' ? s.score : null, reason: s.reason ? String(s.reason) : '', aiEligible: s.eligible ? String(s.eligible).toLowerCase() : undefined, aiEligReason: s.eligReason ? String(s.eligReason) : '' }
+          localScores.set(url, v)
+          cache[url] = { ...v, at: Date.now() }
+        })
+        writeMatchCache(cache)
+        // Live merge: badges appear the moment each batch lands.
+        setJobsList((prev) => prev.map((j) => {
+          const v = localScores.get(j.url)
+          return v ? { ...j, ...v } : j
+        }))
+      }
+
+      const callMatch = (jobs: JobListing[], finals = false) =>
+        fetch('/api/match', {
+          method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ profileText, finals, jobs: jobs.map((j) => ({ title: j.title, company: j.company, description: j.description, location: j.location })) }),
+        })
+
       await Promise.all(chunks.map(async (chunk) => {
-        try {
-          const res = await fetch('/api/match', {
-            method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ profileText, jobs: chunk.map((j) => ({ title: j.title, company: j.company, description: j.description, location: j.location })) }),
-          })
-          const d = await res.json()
-          if (d.success && Array.isArray(d.scores)) {
-            // Merge this batch's scores the moment they arrive (keyed by URL so
-            // it's safe while other batches are still in flight) — the user sees
-            // match badges appear live instead of waiting for the slowest batch.
-            const byUrl = new Map<string, any>()
-            d.scores.forEach((s: any) => { const j = chunk[Number(s.i)]; if (j) byUrl.set(j.url, s) })
-            setJobsList((prev) => prev.map((j) => {
-              const s = byUrl.get(j.url)
-              if (!s) return j
-              const elig = s.eligible ? String(s.eligible).toLowerCase() : undefined
-              return { ...j, score: typeof s.score === 'number' ? s.score : null, reason: s.reason ? String(s.reason) : '', aiEligible: elig, aiEligReason: s.eligReason ? String(s.eligReason) : '' }
-            }))
-          }
-        } catch { /* skip failed chunk */ }
+        // THE 429 RULE: a rate-limited batch WAITS (Retry-After when given) and
+        // retries once instead of silently dying. If it still fails it's
+        // counted and reported loudly below — never a silent partial result.
+        let ok = false
+        for (let attempt = 0; attempt < 2 && !ok; attempt++) {
+          try {
+            const res = await callMatch(chunk)
+            if (res.status === 429 && attempt === 0) {
+              const wait = (Number(res.headers.get('Retry-After')) || 6) * 1000 + Math.random() * 4000
+              await new Promise((r) => setTimeout(r, wait))
+              continue
+            }
+            const d = await res.json()
+            if (res.ok && d.success && Array.isArray(d.scores)) { mergeScores(chunk, d.scores); ok = true }
+            else if (attempt === 0) await new Promise((r) => setTimeout(r, 4000))
+          } catch { if (attempt === 0) await new Promise((r) => setTimeout(r, 4000)) }
+        }
+        if (!ok) failed += 1
         done += 1
         setMatchProgress(`${done}/${chunks.length}`)
       }))
-      // Final ranking once every batch is in: applyable first, best fit first.
+
+      // FINALS ROUND: each batch scored in isolation, so a 70 in one batch
+      // isn't a 70 in another. Re-rank the provisional top together in ONE
+      // call on a single consistent scale. Enhancement only — if it fails,
+      // the batch scores stand.
+      const withScores = jobsList.map((j) => {
+        const v = localScores.get(j.url)
+        if (v) return { ...j, ...v }
+        const c = cache[j.url]
+        return c && cacheFresh(j.url) ? { ...j, score: c.score, reason: c.reason, aiEligible: c.aiEligible, aiEligReason: c.aiEligReason } : j
+      })
+      const top = withScores.filter((j) => j.score != null && j.aiEligible !== 'no').sort((a, b) => (b.score ?? -1) - (a.score ?? -1)).slice(0, 40)
+      if (top.length >= 10) {
+        setMatchProgress('final ranking…')
+        try {
+          const res = await callMatch(top, true)
+          const d = await res.json()
+          if (res.ok && d.success && Array.isArray(d.scores)) mergeScores(top, d.scores)
+        } catch { /* keep batch scores */ }
+      }
+
+      // Final sort: applyable first, best fit first.
       const erank = (e: string | undefined) => (e === 'no' ? 1 : 0)
       setJobsList((prev) => [...prev].sort((a, b) => erank(a.aiEligible) - erank(b.aiEligible) || ((b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score))))
       setJobsPage(1); setExpandedJob(null)
+      if (failed > 0) setJobsError(`Matching finished with ${failed} of ${chunks.length} batches rate-limited — wait a minute and press Smart match again to fill the gaps (already-scored jobs are kept).`)
+      else if (!chunks.length && top.length < 10) setJobsError('Nothing new to match — all visible jobs already have fresh scores. Refresh to fetch new jobs.')
     } catch (e) {
       setJobsError(e instanceof Error ? e.message : 'Matching failed')
     } finally {
