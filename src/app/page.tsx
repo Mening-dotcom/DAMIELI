@@ -4,7 +4,6 @@ import { AppState, UserProfile, Job, Education, Certification, Language, Generat
 import { loadState, saveState, calcProfileStrength, buildProfileText, uid, defaultProfile, defaultState } from '@/lib/state'
 import { renderCV } from '@/lib/templates'
 import { resolveTemplateId } from '@/lib/export'
-import { spanishSynonyms } from '@/lib/sources/synonyms'
 import { HomeTab } from '@/components/HomeTab'
 import { HistoryTab } from '@/components/HistoryTab'
 import { SettingsTab } from '@/components/SettingsTab'
@@ -134,21 +133,14 @@ export default function App() {
       setJobsSources(data.sources || 0)
       let list: JobListing[] = data.jobs || []
       const zone = (prefs.zone || '').trim().toLowerCase()
-      // Tokenize role terms into individual words (len >= 3) so a job matches
-      // on any meaningful word — "QA tester" still catches "Quality Assurance
-      // Tester" via "tester" — instead of needing the exact phrase. Spanish
-      // synonym words are included so LATAM-board jobs ("Soporte Técnico")
-      // survive the filter for English search terms.
-      const phrases = (prefs.keywords || '').split(',').map((s: string) => s.trim()).filter(Boolean)
-      const esWords = spanishSynonyms(phrases).flatMap((s) => s.split(/\s+/))
-      const kws = [...(prefs.keywords || '').split(/[,\s]+/), ...esWords].map((k: string) => k.trim().toLowerCase()).filter((k: string) => k.length >= 3)
+      // NO keyword kill-filter here: the same job hides behind many titles, so
+      // dropping jobs whose text lacks the user's exact words loses good
+      // matches. The role terms steer the SOURCE QUERIES (expanded into whole
+      // title families server-side); relevance is judged semantically by Smart
+      // match. Only hard constraints (zone, salary) filter locally.
       const minSal = Number(prefs.minSalary) || 0
       list = list.filter((j) => {
         if (zone && !String(j.location || '').toLowerCase().includes(zone)) return false
-        if (kws.length) {
-          const hay = (String(j.title) + ' ' + String(j.company) + ' ' + String(j.description)).toLowerCase()
-          if (!kws.some((k: string) => hay.includes(k))) return false
-        }
         if (minSal > 0) { const n = salaryToNumber(j.salaryText); if (n !== null && n < minSal) return false }
         return true
       })

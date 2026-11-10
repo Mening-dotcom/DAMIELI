@@ -12,7 +12,7 @@ import { fetchTheMuseJobs } from './themuse'
 import { fetchJSearchJobs } from './jsearch' // key-gated
 import { fetchAdzunaJobs } from './adzuna' // key-gated
 import { inferEligibility } from './util'
-import { spanishSynonyms } from './synonyms'
+import { expandRoleTerms } from './synonyms'
 
 // LATAM/local boards — their jobs are applyable for a Costa Rica resident even
 // when "onsite", so they bypass the remote-only modality filter.
@@ -57,17 +57,13 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
     // so local-friendly roles are never missed just because of the role list.
     { name: 'getonbrd:costa-rica', run: () => fetchGetOnBoardJobs({ query: 'costa rica', perPage: 50, pages: 2 }) },
   ]
-  // Query-driven sources: one search per role term, so each field is covered.
-  for (let t = 0; t < roleTerms.length; t++) {
-    const term = roleTerms[t]
-    tasks.push({ name: `getonbrd:${term}`, run: () => fetchGetOnBoardJobs({ query: term, perPage: 50, pages: 3 }) })
-  }
-  // LATAM boards list jobs in SPANISH — an English-only search misses them
-  // entirely ("IT support" finds nothing; "soporte técnico" is the real title).
-  // Query GetOnBoard again with the Spanish equivalents of the user's terms.
-  const esTerms = spanishSynonyms(roleTerms).slice(0, 6)
-  for (const es of esTerms) {
-    tasks.push({ name: `getonbrd:${es}`, run: () => fetchGetOnBoardJobs({ query: es, perPage: 50, pages: 2 }) })
+  // Query-driven sources: the user's few seed terms expand into whole job-title
+  // FAMILIES (EN + ES) — "help desk" also searches "service desk", "desktop
+  // support", "soporte técnico", "mesa de ayuda"… so a job never escapes just
+  // because a company picked a different name for the same work.
+  const expandedTerms = expandRoleTerms(roleTerms)
+  for (const term of expandedTerms) {
+    tasks.push({ name: `getonbrd:${term}`, run: () => fetchGetOnBoardJobs({ query: term, perPage: 50, pages: 2 }) })
   }
   // Key-gated aggregator (LinkedIn/Indeed/Glassdoor via JSearch). Small free
   // quota → exactly TWO targeted calls per refresh: the user's top roles, and
