@@ -6,7 +6,6 @@ import { fetchMentorhoodJobs } from './mentorhood'
 import { fetchRemoteOkJobs } from './remoteok'
 import { fetchJobicyJobs } from './jobicy'
 import { fetchHimalayasJobs } from './himalayas'
-import { fetchWeWorkRemotelyJobs } from './weworkremotely'
 import { fetchGetOnBoardJobs, fetchGetOnBoardCategoryJobs } from './getonbrd'
 import { fetchTheMuseJobs } from './themuse'
 import { fetchJSearchJobs } from './jsearch' // key-gated
@@ -53,7 +52,6 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
     { name: 'jobicy:latam', run: () => fetchJobicyJobs({ count: 50, geo: 'latam' }) },
     { name: 'remoteok', run: () => fetchRemoteOkJobs() },
     { name: 'himalayas', run: () => fetchHimalayasJobs({ limit: 100 }) },
-    { name: 'weworkremotely', run: () => fetchWeWorkRemotelyJobs() },
     { name: 'themuse', run: () => fetchTheMuseJobs({ pages: 6 }) },
     // Whole customer-support category on the LATAM board — every posting, not
     // just the ones matching a search term.
