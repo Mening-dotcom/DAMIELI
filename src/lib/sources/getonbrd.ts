@@ -6,16 +6,25 @@
 import type { NormalizedJob } from './types'
 import { stripHtml, salaryRange, unixToIso } from './util'
 
+// Whole-category feed (e.g. 'customer-support') — everything in the category,
+// not just keyword hits. Complements the per-term search.
+export async function fetchGetOnBoardCategoryJobs(opts: { category: string; perPage?: number; pages?: number }): Promise<NormalizedJob[]> {
+  return fetchPages((p) => `https://www.getonbrd.com/api/v0/categories/${encodeURIComponent(opts.category)}/jobs?per_page=${opts.perPage || 50}&page=${p}`, opts.pages || 2)
+}
+
 export async function fetchGetOnBoardJobs(opts: { query?: string; perPage?: number; pages?: number } = {}): Promise<NormalizedJob[]> {
   const query = encodeURIComponent(opts.query || 'developer')
-  const perPage = opts.perPage || 50
-  const pages = Math.min(Math.max(opts.pages || 1, 1), 3)
+  return fetchPages((p) => `https://www.getonbrd.com/api/v0/search/jobs?query=${query}&per_page=${opts.perPage || 50}&page=${p}`, opts.pages || 1)
+}
+
+async function fetchPages(urlFor: (page: number) => string, pagesWanted: number): Promise<NormalizedJob[]> {
+  const pages = Math.min(Math.max(pagesWanted, 1), 3)
   const nums: number[] = []
   for (let p = 1; p <= pages; p++) nums.push(p)
 
   const perPageRows = await Promise.all(nums.map(async (p) => {
     try {
-      const res = await fetch(`https://www.getonbrd.com/api/v0/search/jobs?query=${query}&per_page=${perPage}&page=${p}`, {
+      const res = await fetch(urlFor(p), {
         headers: { 'User-Agent': 'DAMIELI personal job-search tool' },
         cache: 'no-store',
       })

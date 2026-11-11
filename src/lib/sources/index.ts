@@ -6,7 +6,8 @@ import { fetchMentorhoodJobs } from './mentorhood'
 import { fetchRemoteOkJobs } from './remoteok'
 import { fetchJobicyJobs } from './jobicy'
 import { fetchHimalayasJobs } from './himalayas'
-import { fetchGetOnBoardJobs } from './getonbrd'
+import { fetchWeWorkRemotelyJobs } from './weworkremotely'
+import { fetchGetOnBoardJobs, fetchGetOnBoardCategoryJobs } from './getonbrd'
 import { fetchTheMuseJobs } from './themuse'
 import { fetchJSearchJobs } from './jsearch' // key-gated
 import { fetchAdzunaJobs } from './adzuna' // key-gated
@@ -20,7 +21,7 @@ const LATAM_SOURCES = new Set(['getonbrd', 'mentorhood'])
 export type AggregateFilters = { locationType?: string; seniority?: string; roles?: string[] }
 
 const PER_SOURCE_TIMEOUT_MS = 9000
-const MAX_RESULTS = 400
+const MAX_RESULTS = 800
 
 function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
@@ -52,7 +53,11 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
     { name: 'jobicy:latam', run: () => fetchJobicyJobs({ count: 50, geo: 'latam' }) },
     { name: 'remoteok', run: () => fetchRemoteOkJobs() },
     { name: 'himalayas', run: () => fetchHimalayasJobs({ limit: 100 }) },
-    { name: 'themuse', run: () => fetchTheMuseJobs({ pages: 4 }) },
+    { name: 'weworkremotely', run: () => fetchWeWorkRemotelyJobs() },
+    { name: 'themuse', run: () => fetchTheMuseJobs({ pages: 6 }) },
+    // Whole customer-support category on the LATAM board — every posting, not
+    // just the ones matching a search term.
+    { name: 'getonbrd:cat:customer-support', run: () => fetchGetOnBoardCategoryJobs({ category: 'customer-support', perPage: 50, pages: 2 }) },
     // Dedicated Costa-Rica sweep on the LATAM board, independent of role terms,
     // so local-friendly roles are never missed just because of the role list.
     { name: 'getonbrd:costa-rica', run: () => fetchGetOnBoardJobs({ query: 'costa rica', perPage: 50, pages: 2 }) },

@@ -239,7 +239,7 @@ export default function App() {
       // Small parallel batches of 15: wall time = slowest single batch.
       const CHUNK = 15
       const chunks: JobListing[][] = []
-      for (let ci = 0; ci < candidates.length && chunks.length < 27; ci += CHUNK) chunks.push(candidates.slice(ci, ci + CHUNK))
+      for (let ci = 0; ci < candidates.length && chunks.length < 40; ci += CHUNK) chunks.push(candidates.slice(ci, ci + CHUNK))
       let failed = 0
       let done = 0
       if (chunks.length) setMatchProgress(`0/${chunks.length}`)

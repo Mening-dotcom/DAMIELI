@@ -20,7 +20,7 @@ function excerpt(desc: string): string {
 // Semantic fit scoring in ONE batched Claude call. Scores by TRANSFERABLE fit,
 // not keyword overlap — the whole point is that fit is deeper than exact words.
 export async function POST(req: NextRequest) {
-  const limit = rateLimit(req, { windowMs: 60_000, max: 40 }) // one click fires up to 27 small parallel batches
+  const limit = rateLimit(req, { windowMs: 60_000, max: 60 }) // one click fires up to 40 small parallel batches + finals
   if (!limit.allowed) {
     return NextResponse.json({ error: 'Rate limit exceeded. Try again later.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter || 60) } })
   }
