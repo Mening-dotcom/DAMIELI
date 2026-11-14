@@ -140,6 +140,60 @@ export async function getAppState(userId: string) {
   }
 }
 
+// ── Accumulating job pool ─────────────────────────────────────────────
+// Boards only show their newest ~100 postings, so a live fetch is a snapshot.
+// Every fetched job is also upserted here (keyed by URL); searches then merge
+// the recent pool back in — the pool GROWS day by day instead of resetting.
+// Table (create once in Supabase SQL editor — see supabase/job_pool.sql):
+//   job_pool(url text primary key, source text, title text, company text,
+//            description text, location text, "remoteType" text, eligibility text,
+//            "salaryText" text, "postedAt" text, "firstSeen" timestamptz, "lastSeen" timestamptz)
+export type PoolJob = {
+  url: string; source: string; title: string; company: string; description: string
+  location: string; remoteType: string; eligibility: string; salaryText: string | null; postedAt: string | null
+}
+
+export async function upsertJobPool(jobs: PoolJob[]): Promise<void> {
+  if (!jobs.length) return
+  try {
+    const now = new Date().toISOString()
+    const rows = jobs.map((j) => ({
+      url: j.url, source: j.source, title: j.title, company: j.company,
+      description: (j.description || '').slice(0, 4000), location: j.location || '',
+      remoteType: j.remoteType || 'unknown', eligibility: j.eligibility || 'unknown',
+      salaryText: j.salaryText || null, postedAt: j.postedAt || null, lastSeen: now,
+    }))
+    // onConflict updates lastSeen (and freshened fields); firstSeen keeps its
+    // default from the first insert.
+    const { error } = await db().from('job_pool').upsert(rows, { onConflict: 'url' })
+    if (error) console.error('upsertJobPool error (table missing? run supabase/job_pool.sql)', error.message)
+  } catch (e) {
+    console.error('upsertJobPool error', e)
+  }
+}
+
+export async function getPoolJobs(maxAgeDays = 30, limit = 1500): Promise<PoolJob[]> {
+  try {
+    const cutoff = new Date(Date.now() - maxAgeDays * 864e5).toISOString()
+    const { data, error } = await db().from('job_pool').select('*').gte('lastSeen', cutoff).order('lastSeen', { ascending: false }).limit(limit)
+    if (error) { console.error('getPoolJobs error (table missing? run supabase/job_pool.sql)', error.message); return [] }
+    return (data || []) as PoolJob[]
+  } catch (e) {
+    console.error('getPoolJobs error', e)
+    return []
+  }
+}
+
+export async function prunePoolJobs(maxAgeDays = 30): Promise<void> {
+  try {
+    const cutoff = new Date(Date.now() - maxAgeDays * 864e5).toISOString()
+    const { error } = await db().from('job_pool').delete().lt('lastSeen', cutoff)
+    if (error) console.error('prunePoolJobs error', error.message)
+  } catch (e) {
+    console.error('prunePoolJobs error', e)
+  }
+}
+
 // ── Admin (owner-only) aggregates — used by /api/admin/stats. ─────────
 // Never select passwordHash here: these rows travel to the browser.
 export async function adminListUsers(): Promise<Array<{ id: string; email: string; createdAt: string }>> {

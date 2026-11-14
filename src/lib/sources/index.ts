@@ -12,6 +12,7 @@ import { fetchJSearchJobs } from './jsearch' // key-gated
 import { fetchAdzunaJobs } from './adzuna' // key-gated
 import { inferEligibility } from './util'
 import { expandRoleTerms } from './synonyms'
+import { upsertJobPool, getPoolJobs } from '@/lib/db'
 
 // LATAM/local boards — their jobs are applyable for a Costa Rica resident even
 // when "onsite", so they bypass the remote-only modality filter.
@@ -83,7 +84,13 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
     }
   }
 
-  const settled = await Promise.allSettled(tasks.map((t) => withTimeout(t.run(), PER_SOURCE_TIMEOUT_MS)))
+  // The accumulating pool runs alongside the live fetch: boards only show
+  // their newest ~100 postings, so recent pool rows (seen in the last 30 days)
+  // are merged back in. URL dedupe below keeps the LIVE version when both exist.
+  const [settled, poolJobs] = await Promise.all([
+    Promise.allSettled(tasks.map((t) => withTimeout(t.run(), PER_SOURCE_TIMEOUT_MS))),
+    getPoolJobs().catch(() => []),
+  ])
 
   const all: NormalizedJob[] = []
   const sourceErrors: string[] = []
@@ -94,6 +101,10 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
     else if (r.status === 'rejected') sourceErrors.push(`${base}: ${r.reason instanceof Error ? r.reason.message : 'failed'}`)
   })
   const sources = okSources.size
+  const liveCount = all.length
+  for (const p of poolJobs) {
+    all.push({ source: p.source, title: p.title, company: p.company, description: p.description, remoteType: (p.remoteType as NormalizedJob['remoteType']) || 'unknown', location: p.location, salaryText: p.salaryText, postedAt: p.postedAt, url: p.url })
+  }
 
   // Drop junk + dedupe. Primary key is the URL (unique per posting). A
   // title+company key is used ONLY when the company name is real — GetOnBoard
@@ -117,6 +128,16 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
 
   // Tag each job with eligibility (can a LATAM applicant apply?).
   const tagged = deduped.map((j) => ({ ...j, eligibility: inferEligibility(j.location, j.description, j.source) }))
+
+  // Persist this fetch's LIVE jobs into the pool (awaited — a serverless
+  // function can freeze right after the response, losing fire-and-forget
+  // writes). Every user's refresh makes the shared pool bigger for everyone.
+  const liveUrls = new Set(all.slice(0, liveCount).map((j) => j.url))
+  await upsertJobPool(tagged.filter((j) => liveUrls.has(j.url)).map((j) => ({
+    url: j.url, source: j.source, title: j.title, company: j.company, description: j.description,
+    location: j.location, remoteType: j.remoteType || 'unknown', eligibility: j.eligibility || 'unknown',
+    salaryText: j.salaryText ?? null, postedAt: j.postedAt ?? null,
+  }))).catch(() => { /* pool is best-effort */ })
 
   // Soft seniority filter: when Junior, drop clearly-senior titles.
   let jobs = tagged
