@@ -2,6 +2,39 @@
 // Plain functions, no React: they take data and produce a file.
 import { UserProfile, CVData } from '@/lib/types'
 
+// Save a generated file on EVERY platform. Mobile browsers break the naive
+// approaches: jsPDF's doc.save() and a non-DOM-attached <a download> both open
+// the blob in a new tab instead of downloading (the "can't submit my
+// application from my phone" bug). Strategy:
+//   1. On phones that support it, use the native SHARE SHEET — the user can
+//      "Save to Files" or attach the CV directly into the application.
+//   2. Otherwise: DOM-attached anchor + download attr, object URL revoked only
+//      after a delay (revoking too early aborts the download on Safari).
+async function saveFile(blob: Blob, filename: string, mime: string): Promise<void> {
+  const isMobile = typeof navigator !== 'undefined' && /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
+  if (isMobile && typeof navigator.share === 'function' && typeof navigator.canShare === 'function') {
+    try {
+      const file = new File([blob], filename, { type: mime })
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: filename })
+        return
+      }
+    } catch (e) {
+      // User closed the share sheet on purpose — don't force a download on top.
+      if (e instanceof Error && e.name === 'AbortError') return
+      // Any other failure: fall through to the anchor download.
+    }
+  }
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  a.rel = 'noopener'
+  document.body.appendChild(a)
+  a.click()
+  setTimeout(() => { document.body.removeChild(a); URL.revokeObjectURL(url) }, 2000)
+}
+
 export const resolveTemplateId = (value?: string) => {
   const normalized = value?.trim().toLowerCase()
   if (normalized === 'ats' || normalized === 'creative' || normalized === 'modern') return normalized
@@ -168,7 +201,7 @@ export async function downloadPDF(profile: UserProfile, cvData: CVData, role: st
       line(cvData.languages.join('  |   '), 8.2, false, bodyColor)
     }
 
-    doc.save(`${(profile?.name || 'CV').replace(/ /g, '_')}_${(templateId || 'modern').toUpperCase()}_CV.pdf`)
+    await saveFile(doc.output('blob'), `${(profile?.name || 'CV').replace(/ /g, '_')}_${(templateId || 'modern').toUpperCase()}_CV.pdf`, 'application/pdf')
   } catch (error) {
     console.error('PDF Generation crashed:', error)
   }
@@ -244,8 +277,5 @@ export async function downloadWord(profile: UserProfile, cvData: CVData, role: s
 
   const doc = new Document({ sections: [{ properties: { page: { margin: { top: 720, right: 720, bottom: 720, left: 720 } } }, children }] })
   const buffer = await Packer.toBlob(doc)
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(buffer)
-  a.download = `${profile.name.replace(/ /g, '_')}_CV_${role.replace(/ /g, '_')}.docx`
-  a.click()
+  await saveFile(buffer, `${profile.name.replace(/ /g, '_')}_CV_${role.replace(/ /g, '_')}.docx`, 'application/vnd.openxmlformats-officedocument.wordprocessingml.document')
 }
