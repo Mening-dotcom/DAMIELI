@@ -275,6 +275,7 @@ export default function App() {
       for (let ci = 0; ci < candidates.length && chunks.length < 40; ci += CHUNK) chunks.push(candidates.slice(ci, ci + CHUNK))
       let failed = 0
       let done = 0
+      let capMsg = ''
       if (chunks.length) setMatchProgress(`0/${chunks.length}`)
 
       // Local mirror of every merged verdict — React state updates are async,
@@ -311,6 +312,11 @@ export default function App() {
         for (let attempt = 0; attempt < 2 && !ok; attempt++) {
           try {
             const res = await callMatch(chunk)
+            if (res.status === 403) {
+              // Daily usage cap — a policy answer, not a transient failure.
+              try { const d = await res.json(); capMsg = d.error || 'Daily limit reached.' } catch { capMsg = 'Daily limit reached.' }
+              break
+            }
             if (res.status === 429 && attempt === 0) {
               const wait = (Number(res.headers.get('Retry-After')) || 6) * 1000 + Math.random() * 4000
               await new Promise((r) => setTimeout(r, wait))
@@ -337,7 +343,7 @@ export default function App() {
         return c && cacheFresh(j.url) ? { ...j, score: c.score, reason: c.reason, aiEligible: c.aiEligible, aiEligReason: c.aiEligReason } : j
       })
       const top = withScores.filter((j) => j.score != null && j.aiEligible !== 'no').sort((a, b) => (b.score ?? -1) - (a.score ?? -1)).slice(0, 40)
-      if (top.length >= 10) {
+      if (top.length >= 10 && !capMsg) {
         setMatchProgress('final ranking…')
         try {
           const res = await callMatch(top, true)
@@ -350,7 +356,8 @@ export default function App() {
       const erank = (e: string | undefined) => (e === 'no' ? 1 : 0)
       setJobsList((prev) => [...prev].sort((a, b) => erank(a.aiEligible) - erank(b.aiEligible) || ((b.score == null ? -1 : b.score) - (a.score == null ? -1 : a.score))))
       setJobsPage(1); setExpandedJob(null)
-      if (failed > 0) setJobsError(`Matching finished with ${failed} of ${chunks.length} batches rate-limited — wait a minute and press Smart match again to fill the gaps (already-scored jobs are kept).`)
+      if (capMsg) setJobsError(capMsg)
+      else if (failed > 0) setJobsError(`Matching finished with ${failed} of ${chunks.length} batches rate-limited — wait a minute and press Smart match again to fill the gaps (already-scored jobs are kept).`)
       else if (!chunks.length && top.length < 10) setJobsError('Nothing new to match — all visible jobs already have fresh scores. Refresh to fetch new jobs.')
     } catch (e) {
       setJobsError(e instanceof Error ? e.message : 'Matching failed')

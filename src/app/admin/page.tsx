@@ -5,7 +5,7 @@
 import { useEffect, useState } from 'react'
 
 type AdminUser = { email: string; createdAt: string; cvsOnServer: number; name: string; location: string; jobs: number; skills: number; cvsGenerated: number; jobsAnalyzed: number; timeSaved: number }
-type AdminData = { users: AdminUser[]; recentCVs: Array<{ when: string; user: string; role: string; company: string; atsScore: number }>; totals: { users: number; cvsOnServer: number }; generatedAt: string }
+type AdminData = { users: AdminUser[]; recentCVs: Array<{ when: string; user: string; role: string; company: string; atsScore: number }>; totals: { users: number; cvsOnServer: number; poolCount?: number }; generatedAt: string }
 
 const card: React.CSSProperties = { background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 16, boxShadow: '0 10px 30px rgba(6, 58, 75, 0.08)' }
 const th: React.CSSProperties = { textAlign: 'left', fontSize: 11, textTransform: 'uppercase', letterSpacing: 1, color: 'var(--muted)', padding: '12px 14px', borderBottom: '1px solid var(--border)', fontFamily: 'Syne', fontWeight: 700 }
@@ -37,6 +37,7 @@ export default function AdminPage() {
     { label: 'Active users', value: active, note: 'generated a CV or analyzed jobs', color: '#ec4899' },
     { label: 'CVs on server', value: data.totals.cvsOnServer, note: 'rows in history table', color: '#7c3aed' },
     { label: 'Signups last 7 days', value: newThisWeek, note: newThisWeek > 5 ? '⚠ unusual — check emails' : 'normal', color: newThisWeek > 5 ? '#ef4444' : '#22c55e' },
+    { label: 'Job pool (30 days)', value: data.totals.poolCount ?? 0, note: 'accumulated jobs — grows daily via cron', color: '#0ea5e9' },
   ]
 
   return (

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getUserIdFromRequest } from '@/lib/auth'
-import { findUserById, adminListUsers, adminListStates, adminListHistory } from '@/lib/db'
+import { findUserById, adminListUsers, adminListStates, adminListHistory, getPoolCount } from '@/lib/db'
 
 export const runtime = 'nodejs'
 
@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Not found' }, { status: 404 })
   }
 
-  const [users, states, history] = await Promise.all([adminListUsers(), adminListStates(), adminListHistory()])
+  const [users, states, history, poolCount] = await Promise.all([adminListUsers(), adminListStates(), adminListHistory(), getPoolCount()])
 
   // The app_state.profile column holds the whole state blob ({profile, stats, ...})
   // for newer rows, or just the profile for the oldest ones — same contract as
@@ -74,6 +74,6 @@ export async function GET(req: NextRequest) {
     recentCVs: history.slice(0, 15).map((h) => ({
       when: h.generatedAt, user: emailById.get(h.userId) || h.userId, role: h.role, company: h.company, atsScore: h.atsScore,
     })),
-    totals: { users: users.length, cvsOnServer: history.length },
+    totals: { users: users.length, cvsOnServer: history.length, poolCount },
   })
 }

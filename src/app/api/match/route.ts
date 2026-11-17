@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { rateLimit } from '@/lib/rate-limit'
+import { checkDailyCap } from '@/lib/usage'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -24,6 +25,10 @@ export async function POST(req: NextRequest) {
   if (!limit.allowed) {
     return NextResponse.json({ error: 'Rate limit exceeded. Try again later.' }, { status: 429, headers: { 'Retry-After': String(limit.retryAfter || 60) } })
   }
+  // Cost protection: each batch is a Claude call. ~150/day covers 3 full
+  // matches for a signed-in user; anonymous visitors get a taste (30).
+  const cap = await checkDailyCap(req, 'match', 150, 30)
+  if (!cap.allowed) return NextResponse.json({ success: false, error: cap.message }, { status: 403 })
   try {
     const { profileText, jobs, finals } = await req.json()
     if (!profileText || !Array.isArray(jobs) || jobs.length === 0) {

@@ -3,6 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { saveGeneratedCV } from '@/lib/db'
 import { getUserIdFromRequest } from '@/lib/auth'
 import { rateLimit } from '@/lib/rate-limit'
+import { checkDailyCap } from '@/lib/usage'
 
 export const maxDuration = 60
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
@@ -16,6 +17,10 @@ export async function POST(req: NextRequest) {
   try {
     const userId = getUserIdFromRequest(req)
     if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+    // Cost protection: each CV = two Claude calls (draft + fact-check).
+    const cap = await checkDailyCap(req, 'generate', 10, 0)
+    if (!cap.allowed) return NextResponse.json({ error: cap.message }, { status: 403 })
 
     const { profileText, jobText, company, role, jobUrl, language } = await req.json()
     const outputLanguage = language === 'Spanish' ? 'Spanish' : 'English'

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { rateLimit } from '@/lib/rate-limit'
+import { checkDailyCap } from '@/lib/usage'
 
 export const runtime = 'nodejs'
 export const maxDuration = 60
@@ -24,6 +25,11 @@ export async function POST(req: NextRequest) {
     if (!profileText || String(profileText).trim().length < 20) {
       return NextResponse.json({ success: true, roles: FALLBACK, source: 'fallback' })
     }
+
+    // Cost protection: over the daily cap we degrade to the static fallback
+    // list instead of blocking — role seeds are never worth an error screen.
+    const cap = await checkDailyCap(req, 'roles', 20, 5)
+    if (!cap.allowed) return NextResponse.json({ success: true, roles: FALLBACK, source: 'capped' })
 
     const prompt = `You are a remote-career coach for someone based in Costa Rica (LATAM) who applies to REMOTE jobs worldwide.
 

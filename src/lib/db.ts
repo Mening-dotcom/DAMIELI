@@ -194,6 +194,34 @@ export async function prunePoolJobs(maxAgeDays = 30): Promise<void> {
   }
 }
 
+// ── Daily usage caps (cost protection for the AI endpoints) ───────────
+// Counted in Supabase so the cap holds across serverless instances. FAILS
+// OPEN if the table is missing (run supabase/usage_daily.sql) — the app must
+// never break because metering is unavailable; it just logs.
+export async function bumpUsage(identity: string, kind: 'match' | 'generate' | 'roles', limit: number): Promise<{ allowed: boolean; used: number }> {
+  try {
+    const day = new Date().toISOString().slice(0, 10)
+    const { data, error } = await db().from('usage_daily').select('count').eq('identity', identity).eq('day', day).eq('kind', kind).limit(1)
+    if (error) { console.error('bumpUsage read error (table missing? run supabase/usage_daily.sql)', error.message); return { allowed: true, used: 0 } }
+    const used = data && data.length ? Number(data[0].count) || 0 : 0
+    if (used >= limit) return { allowed: false, used }
+    const { error: upErr } = await db().from('usage_daily').upsert({ identity, day, kind, count: used + 1 }, { onConflict: 'identity,day,kind' })
+    if (upErr) console.error('bumpUsage write error', upErr.message)
+    return { allowed: true, used: used + 1 }
+  } catch (e) {
+    console.error('bumpUsage error', e)
+    return { allowed: true, used: 0 }
+  }
+}
+
+export async function getPoolCount(): Promise<number> {
+  try {
+    const { count, error } = await db().from('job_pool').select('url', { count: 'exact', head: true })
+    if (error) return 0
+    return count || 0
+  } catch { return 0 }
+}
+
 // ── Admin (owner-only) aggregates — used by /api/admin/stats. ─────────
 // Never select passwordHash here: these rows travel to the browser.
 export async function adminListUsers(): Promise<Array<{ id: string; email: string; createdAt: string }>> {
