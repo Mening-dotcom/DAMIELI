@@ -67,6 +67,14 @@ CRITICAL ATS RULES:
 - No tables, columns, graphics in the text structure
 - Action verbs: Led, Built, Delivered, Improved, Managed, Developed, Implemented, Drove, Reduced, Increased
 
+THE ONE-PAGE RULE — the CV must fit a single A4 page. A second page kills it in ATS screening. Budget strictly:
+- Summary: maximum 3 sentences (~50 words).
+- Experience: at most 3 positions (the MOST relevant to this job), maximum 3 bullets each, each bullet ≤ 20 words.
+- Skills: SELECT the 8-10 most relevant to this job — never the full list.
+- Certifications: only the ones relevant to this job, maximum 4.
+- Education: maximum 2 entries, no coursework lists unless directly relevant.
+Being selective is the skill: cutting a weak item makes the strong ones louder.
+
 Respond with ONLY valid JSON, no markdown, no explanation:
 {
   "summary": "3-4 sentence professional summary tailored to this exact role",
@@ -113,6 +121,21 @@ Respond with ONLY valid JSON, no markdown, no explanation:
     const clean = textBlock.text.replace(/```json|```/g, '').trim()
     let cvData = JSON.parse(clean)
 
+    // Hard one-page guarantee: even if the model over-delivers, clamp the
+    // content budget so the rendered PDF/Word stays on a single page.
+    const clampOnePage = (cv: any) => {
+      if (typeof cv.summary === 'string' && cv.summary.length > 480) cv.summary = cv.summary.slice(0, 477).replace(/\s+\S*$/, '') + '…'
+      if (Array.isArray(cv.experience)) {
+        cv.experience = cv.experience.slice(0, 3)
+        for (const exp of cv.experience) if (Array.isArray(exp?.bullets)) exp.bullets = exp.bullets.slice(0, 3)
+      }
+      if (Array.isArray(cv.skills)) cv.skills = cv.skills.slice(0, 10)
+      if (Array.isArray(cv.certifications)) cv.certifications = cv.certifications.slice(0, 4)
+      if (Array.isArray(cv.education)) cv.education = cv.education.slice(0, 2)
+      return cv
+    }
+    cvData = clampOnePage(cvData)
+
     // ── Fact-check pass ──
     // A user received a CV that claimed she already held the role she was
     // applying to. Prompt rules alone don't guarantee truth, so a second pass
@@ -149,6 +172,19 @@ Return ONLY the corrected full CV JSON (same schema, including atsScore/matchedK
     } catch (e) {
       console.error('CV fact-check pass failed — returning unaudited draft', e)
     }
+
+    // Skills grounding: the model tends to mirror the TARGET job's skill words
+    // ("Salesforce CRM" for someone who never used it). A skill survives only
+    // if at least one of its meaningful words appears in the profile text.
+    const profileLower = String(profileText).toLowerCase()
+    if (Array.isArray(cvData.skills)) {
+      cvData.skills = cvData.skills.filter((s: unknown) => {
+        const words = String(s).toLowerCase().split(/[^a-z0-9+#.]+/).filter((w) => w.length >= 4)
+        return words.length === 0 || words.some((w) => profileLower.includes(w))
+      })
+    }
+    // Re-clamp after the audit (it may have re-expanded something).
+    cvData = clampOnePage(cvData)
 
     try {
       const id = Math.random().toString(36).slice(2, 10)
