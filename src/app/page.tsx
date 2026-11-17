@@ -144,9 +144,37 @@ export default function App() {
     if (!nums || !nums.length) return null
     return Math.max.apply(null, nums.map((n: string) => parseInt(n, 10)))
   }
+  // djb2 — tiny fingerprint to detect "profile changed since last derivation".
+  function hashStr(s: string): string {
+    let h = 5381
+    for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) | 0
+    return String(h)
+  }
   async function loadJobs(prefs = searchPrefs) {
     setJobsLoading(true); setJobsError(''); setExpandedJob(null)
     try {
+      // PROFILE-DRIVEN SEEDS: the boards need search terms, but the user
+      // shouldn't have to invent them. Whenever the profile has changed since
+      // the last derivation, ask the AI for fresh role seeds and merge them
+      // with whatever the user typed (their words are kept, never replaced).
+      const ptext = buildProfileText(state.profile)
+      if (ptext.trim().length > 40) {
+        const h = hashStr(ptext)
+        let last: string | null = null
+        try { last = window.localStorage.getItem('damieli_profile_roles_hash') } catch { /* ignore */ }
+        if (h !== last) {
+          const roles = await suggestRoles()
+          if (roles) {
+            const derived = roles.split(',').map((s) => s.trim()).filter(Boolean)
+            const existing = (prefs.keywords || '').split(',').map((s) => s.trim()).filter(Boolean)
+            const merged = Array.from(new Set([...derived, ...existing])).slice(0, 10).join(', ')
+            prefs = { ...prefs, keywords: merged }
+            setSearchPrefs(prefs)
+            try { window.localStorage.setItem('damieli_search_prefs', JSON.stringify(prefs)) } catch { /* ignore */ }
+          }
+          try { window.localStorage.setItem('damieli_profile_roles_hash', h) } catch { /* ignore */ }
+        }
+      }
       const q = new URLSearchParams()
       if (prefs.modality && prefs.modality !== 'any') q.set('locationType', prefs.modality)
       if (prefs.seniority) q.set('seniority', prefs.seniority)
@@ -376,28 +404,13 @@ export default function App() {
   // First time the Jobs tab opens, auto-pick role search terms from the user's
   // profile (so they never invent a job title), then load jobs. Runs once per
   // device; after that it respects whatever roles the user has set.
+  // First visit to the Jobs tab just triggers a load — seed derivation now
+  // lives INSIDE loadJobs (profile-driven on every refresh).
   const rolesAutoRan = useRef(false)
   useEffect(() => {
     if (screen !== 'jobs' || rolesAutoRan.current) return
     rolesAutoRan.current = true
-    let already = false
-    // v2: role auto-pick now mines ALL profile domains (medical/finance/collections/
-    // tech/languages) — bumping the key forces one fresh re-pick for everyone.
-    try { already = window.localStorage.getItem('damieli_roles_auto_v2') === '1' } catch { /* ignore */ }
-    if (already) {
-      if (!jobsList.length && !jobsLoading) loadJobs()
-      return
-    }
-    void (async () => {
-      const roles = await suggestRoles()
-      const nextPrefs = roles ? { ...searchPrefs, keywords: roles } : searchPrefs
-      if (roles) {
-        setSearchPrefs(nextPrefs)
-        try { window.localStorage.setItem('damieli_search_prefs', JSON.stringify(nextPrefs)) } catch { /* ignore */ }
-      }
-      try { window.localStorage.setItem('damieli_roles_auto_v2', '1') } catch { /* ignore */ }
-      loadJobs(nextPrefs)
-    })()
+    if (!jobsList.length && !jobsLoading) loadJobs()
   }, [screen])
 
   const hasMeaningfulProfile = (profile?: Partial<UserProfile>) => {

@@ -37,7 +37,7 @@ export function SettingsTab({ searchPrefs, setSearchPrefs, autoPickRoles, rolesL
               <label style={lbl}>Zone / country (blank = anywhere)
                 <input type="text" placeholder="e.g. Costa Rica, LATAM, Brasil, Worldwide" value={searchPrefs.zone} onChange={e => setSearchPrefs({ ...searchPrefs, zone: e.target.value })} style={inp} />
               </label>
-              <label style={lbl}>Role seeds (a few is enough — DAMIELI expands each into every known title variant, English and Spanish, and Smart match finds jobs even when the title is different)
+              <label style={lbl}>Role seeds (optional — DAMIELI auto-derives these from your profile on every refresh and expands each into every title variant, English and Spanish; anything you add here is kept and searched too)
                 <input type="text" placeholder="e.g. QA tester, developer, IT support, accounting, credit analyst" value={searchPrefs.keywords} onChange={e => setSearchPrefs({ ...searchPrefs, keywords: e.target.value })} style={inp} />
               </label>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: -4, flexWrap: 'wrap' }}>
