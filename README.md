@@ -67,7 +67,7 @@ All sources run in parallel under `Promise.allSettled` with a **9-second per-sou
 | Data | Supabase (Postgres) — profiles, history, cross-device sync |
 | Auth | Custom session tokens (HMAC-signed), bcrypt-style hashing |
 | Hosting | Vercel (auto-deploy on push) + Vercel cron |
-| Job sources | GetOnBoard, Mentorhood, Jobicy (+LATAM feed), RemoteOK, Himalayas, Arbeitnow, The Muse; JSearch/Adzuna optional (key-gated) |
+| Job sources | GetOnBoard (search + category feeds), Mentorhood, Jobicy (+LATAM feed), We Work Remotely, Himalayas, The Muse; JSearch/Adzuna optional (key-gated) |
 
 ## Running locally
 

@@ -3,7 +3,7 @@
 // dedupes, filters (seniority / modality), and returns newest-first.
 import type { NormalizedJob } from './types'
 import { fetchMentorhoodJobs } from './mentorhood'
-import { fetchRemoteOkJobs } from './remoteok'
+import { fetchWeWorkRemotelyJobs } from './weworkremotely'
 import { fetchJobicyJobs } from './jobicy'
 import { fetchHimalayasJobs } from './himalayas'
 import { fetchGetOnBoardJobs, fetchGetOnBoardCategoryJobs } from './getonbrd'
@@ -51,7 +51,8 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
     { name: 'jobicy', run: () => fetchJobicyJobs({ count: 50 }) },
     // Jobicy LATAM feed: jobs explicitly open to Latin-America applicants.
     { name: 'jobicy:latam', run: () => fetchJobicyJobs({ count: 50, geo: 'latam' }) },
-    { name: 'remoteok', run: () => fetchRemoteOkJobs() },
+    // We Work Remotely — user-verified FREE to apply (the pay-wall board was RemoteOK).
+    { name: 'weworkremotely', run: () => fetchWeWorkRemotelyJobs() },
     { name: 'himalayas', run: () => fetchHimalayasJobs({ limit: 100 }) },
     { name: 'themuse', run: () => fetchTheMuseJobs({ pages: 6 }) },
     // CATEGORY feeds on the LATAM board — sourcing by CONCEPT, not by words:
