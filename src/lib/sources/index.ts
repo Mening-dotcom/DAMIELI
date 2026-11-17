@@ -54,9 +54,14 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
     { name: 'remoteok', run: () => fetchRemoteOkJobs() },
     { name: 'himalayas', run: () => fetchHimalayasJobs({ limit: 100 }) },
     { name: 'themuse', run: () => fetchTheMuseJobs({ pages: 6 }) },
-    // Whole customer-support category on the LATAM board — every posting, not
-    // just the ones matching a search term.
+    // CATEGORY feeds on the LATAM board — sourcing by CONCEPT, not by words:
+    // every posting in the category arrives no matter what title the company
+    // invented, and Smart match judges the real fit. Covers the app's core
+    // domains: support, tech (sysadmin/QA/programming), and data.
     { name: 'getonbrd:cat:customer-support', run: () => fetchGetOnBoardCategoryJobs({ category: 'customer-support', perPage: 50, pages: 2 }) },
+    { name: 'getonbrd:cat:sysadmin-devops-qa', run: () => fetchGetOnBoardCategoryJobs({ category: 'sysadmin-devops-qa', perPage: 50, pages: 2 }) },
+    { name: 'getonbrd:cat:programming', run: () => fetchGetOnBoardCategoryJobs({ category: 'programming', perPage: 50, pages: 2 }) },
+    { name: 'getonbrd:cat:data', run: () => fetchGetOnBoardCategoryJobs({ category: 'data-science-analytics', perPage: 50, pages: 2 }) },
     // Dedicated Costa-Rica sweep on the LATAM board, independent of role terms,
     // so local-friendly roles are never missed just because of the role list.
     { name: 'getonbrd:costa-rica', run: () => fetchGetOnBoardJobs({ query: 'costa rica', perPage: 50, pages: 2 }) },
