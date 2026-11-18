@@ -9,7 +9,7 @@ import { fetchGetOnBoardJobs, fetchGetOnBoardCategoryJobs } from './getonbrd'
 import { fetchTheMuseJobs } from './themuse'
 import { fetchJSearchJobs } from './jsearch' // key-gated
 import { fetchAdzunaJobs } from './adzuna' // key-gated
-import { inferEligibility } from './util'
+import { inferEligibility, isBlockedUrl } from './util'
 import { expandRoleTerms } from './synonyms'
 import { upsertJobPool, getPoolJobs } from '@/lib/db'
 
@@ -117,6 +117,7 @@ export async function aggregateJobs(filters: AggregateFilters): Promise<{ jobs: 
   const seenTitleCo = new Set<string>()
   const deduped = all.filter((j) => {
     if (!j.title || !j.url) return false
+    if (isBlockedUrl(j.url)) return false // pay-to-apply platforms: never shown
     const url = j.url.trim()
     if (seenUrl.has(url)) return false
     seenUrl.add(url)

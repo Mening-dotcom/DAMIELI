@@ -1,6 +1,24 @@
 // Small shared helpers for job sources.
 import type { Eligibility } from './types'
 
+// PAY-TO-APPLY DENYLIST (user-verified): these platforms charge candidates to
+// apply. Jobs linking to them are dropped no matter which source delivered
+// them (direct feed, JSearch aggregation, pool rows, imports).
+export const BLOCKED_DOMAINS = [
+  'remoteok.com', 'remoteok.io',
+  'weworkremotely.com',
+  'arc.dev',
+  'peopleperhour.com',
+  'nodesk.co',
+  'toptal.com',
+  'remotive.com', 'remotive.io',
+]
+
+export function isBlockedUrl(url: unknown): boolean {
+  const u = String(url || '').toLowerCase()
+  return BLOCKED_DOMAINS.some((d) => u.includes('//' + d) || u.includes('.' + d) || u.includes('//www.' + d))
+}
+
 export function stripHtml(s: unknown): string {
   if (typeof s !== 'string') return ''
   return s

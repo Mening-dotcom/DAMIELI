@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { pingDb, prunePoolJobs } from '@/lib/db'
+import { pingDb, prunePoolJobs, purgeBlockedPool } from '@/lib/db'
 import { aggregateJobs } from '@/lib/sources'
+import { BLOCKED_DOMAINS } from '@/lib/sources/util'
 
 // Hit daily by the Vercel Cron in vercel.json so the free-tier Supabase
 // project always sees activity and never auto-pauses.
@@ -20,6 +21,7 @@ export async function GET(req: NextRequest) {
       const { jobs } = await aggregateJobs({ locationType: 'remote', seniority: 'Junior', roles: HARVEST_ROLES })
       harvested = jobs.length
       await prunePoolJobs(30)
+      await purgeBlockedPool(BLOCKED_DOMAINS)
     }
     return NextResponse.json({ ok, db: ok ? 'up' : 'error', ...(harvested !== undefined ? { harvested } : {}) }, { status: ok ? 200 : 500 })
   } catch (err: unknown) {

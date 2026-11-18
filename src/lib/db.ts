@@ -194,6 +194,19 @@ export async function prunePoolJobs(maxAgeDays = 30): Promise<void> {
   }
 }
 
+// Purge rows whose URL points at a pay-to-apply platform (user denylist) —
+// run by the daily harvest so banned domains never linger in the database.
+export async function purgeBlockedPool(domains: string[]): Promise<void> {
+  for (const d of domains) {
+    try {
+      const { error } = await db().from('job_pool').delete().like('url', `%${d}%`)
+      if (error) console.error('purgeBlockedPool error', d, error.message)
+    } catch (e) {
+      console.error('purgeBlockedPool error', d, e)
+    }
+  }
+}
+
 // ── Daily usage caps (cost protection for the AI endpoints) ───────────
 // Counted in Supabase so the cap holds across serverless instances. FAILS
 // OPEN if the table is missing (run supabase/usage_daily.sql) — the app must
