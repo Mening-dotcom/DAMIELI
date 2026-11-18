@@ -67,13 +67,13 @@ CRITICAL ATS RULES:
 - No tables, columns, graphics in the text structure
 - Action verbs: Led, Built, Delivered, Improved, Managed, Developed, Implemented, Drove, Reduced, Increased
 
-THE ONE-PAGE RULE — the CV must fit a single A4 page. A second page kills it in ATS screening. Budget strictly:
-- Summary: maximum 3 sentences (~50 words).
-- Experience: at most 3 positions (the MOST relevant to this job), maximum 3 bullets each, each bullet ≤ 20 words.
+THE ONE-PAGE RULE — the CV must FILL a single A4 page: aim for 90-100% of the page, never a second page and never a half-empty one. The budget ADAPTS to how much experience exists:
+- 1-2 positions in the profile → write 5-6 strong bullets for each (each ≤ 22 words) so the page fills.
+- 3+ positions → pick the 3 MOST relevant, 3-4 bullets each.
+- Summary: 3-4 sentences (~60-80 words).
 - Skills: SELECT the 8-10 most relevant to this job — never the full list.
-- Certifications: only the ones relevant to this job, maximum 4.
-- Education: maximum 2 entries, no coursework lists unless directly relevant.
-Being selective is the skill: cutting a weak item makes the strong ones louder.
+- Certifications: only the relevant ones, maximum 4. Education: maximum 2 entries.
+Being selective is the skill — but a half-empty page reads as a thin candidate. Use the space the real experience earns.
 
 Respond with ONLY valid JSON, no markdown, no explanation:
 {
@@ -124,10 +124,12 @@ Respond with ONLY valid JSON, no markdown, no explanation:
     // Hard one-page guarantee: even if the model over-delivers, clamp the
     // content budget so the rendered PDF/Word stays on a single page.
     const clampOnePage = (cv: any) => {
-      if (typeof cv.summary === 'string' && cv.summary.length > 480) cv.summary = cv.summary.slice(0, 477).replace(/\s+\S*$/, '') + '…'
+      if (typeof cv.summary === 'string' && cv.summary.length > 600) cv.summary = cv.summary.slice(0, 597).replace(/\s+\S*$/, '') + '…'
       if (Array.isArray(cv.experience)) {
         cv.experience = cv.experience.slice(0, 3)
-        for (const exp of cv.experience) if (Array.isArray(exp?.bullets)) exp.bullets = exp.bullets.slice(0, 3)
+        // Few positions → more room per position, so the page still fills.
+        const maxBullets = cv.experience.length <= 2 ? 6 : 4
+        for (const exp of cv.experience) if (Array.isArray(exp?.bullets)) exp.bullets = exp.bullets.slice(0, maxBullets)
       }
       if (Array.isArray(cv.skills)) cv.skills = cv.skills.slice(0, 10)
       if (Array.isArray(cv.certifications)) cv.certifications = cv.certifications.slice(0, 4)
