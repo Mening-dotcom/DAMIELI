@@ -51,6 +51,7 @@ export async function POST(req: NextRequest) {
 - MULTILINGUAL is a major asset: for interpreter, bilingual-support, localization, or language-facing roles, speaking the required languages IS the core qualification — score those high.
 - Consider seniority and whether they could realistically do and get this job.
 Scoring: 80-100 strong, 60-79 good, 40-59 stretch, 0-39 weak.
+- ANCHOR for multi-domain candidates: a job squarely INSIDE one of their experienced domains (e.g. medical billing for someone with years of healthcare collections; bilingual support for a fluent bilingual with support years) scores 75+ when requirements align. Multi-domain experience is NOT diluted — judge each job against the RELEVANT domain at full strength.
 
 (2) ELIGIBILITY — can this Costa-Rica-based candidate, who has NO US or EU work authorization, realistically APPLY and be HIRED? Read the ACTUAL requirements:
 - "no" → the job requires US/EU/other-country work authorization, residency, citizenship, security clearance, onsite/hybrid in another country, or says "US only / must reside in X".

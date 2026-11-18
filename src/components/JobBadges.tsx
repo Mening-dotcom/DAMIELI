@@ -2,10 +2,15 @@
 // Pure presentational components: data comes in as props, nothing else.
 
 export function ScoreBadge({ score, reason }: { score: number; reason?: string }) {
-  const bg = score >= 70 ? '#059669' : score >= 40 ? '#d97706' : '#dc2626'
+  // Bands mirror the scoring rubric so users read the number the way the AI
+  // meant it: 60-79 IS "good — worth applying", not a failing grade.
+  const band = score >= 80 ? { label: 'Strong fit', bg: '#059669' }
+    : score >= 60 ? { label: 'Good fit', bg: '#0d9488' }
+    : score >= 40 ? { label: 'Stretch', bg: '#d97706' }
+    : { label: 'Weak fit', bg: '#dc2626' }
   return (
     <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 12, fontWeight: 800, padding: '2px 8px', borderRadius: 999, color: '#fff', background: bg }}>{score}% match</span>
+      <span style={{ fontSize: 12, fontWeight: 800, padding: '2px 8px', borderRadius: 999, color: '#fff', background: band.bg }}>{score}% · {band.label}</span>
       {reason ? <span style={{ fontSize: 12, color: '#64748b' }}>{reason}</span> : null}
     </div>
   )

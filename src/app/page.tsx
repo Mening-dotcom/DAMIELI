@@ -119,12 +119,12 @@ export default function App() {
   type CachedScore = { score: number | null; reason: string; aiEligible?: string; aiEligReason: string; at: number }
   // v2: bump this suffix whenever the matching logic improves — it abandons
   // every cached verdict so ALL jobs get re-judged by the better matcher.
-  const MATCH_CACHE_KEY = 'damieli_match_cache_v2'
+  const MATCH_CACHE_KEY = 'damieli_match_cache_v3'
   const MATCH_CACHE_MAX = 800
   const MATCH_CACHE_TTL = 7 * 864e5 // re-judge after a week (postings change)
   function readMatchCache(): Record<string, CachedScore> {
     try {
-      window.localStorage.removeItem('damieli_match_cache') // clear abandoned v1
+      window.localStorage.removeItem('damieli_match_cache'); window.localStorage.removeItem('damieli_match_cache_v2') // clear abandoned versions
       return JSON.parse(window.localStorage.getItem(MATCH_CACHE_KEY) || '{}')
     } catch { return {} }
   }
